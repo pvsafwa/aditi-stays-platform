@@ -1,0 +1,201 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-service
+  namespace: aditi-stays
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: chat-service
+  template:
+    metadata:
+      labels:
+        app: chat-service
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: db-bootstrap
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready -d "$DATABASE_URL" >/dev/null 2>&1; do sleep 2; done
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /bootstrap/init.sql
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: database_url
+          volumeMounts:
+            - name: db-bootstrap-sql
+              mountPath: /bootstrap
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: chat-service
+          image: chat-service:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: APP_PORT
+              value: "8000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: chat_database_url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: redis_url
+            - name: LEAD_NOTIFICATION_CHANNEL
+              value: "lead_notifications"
+            - name: CHAT_EVENTS_CHANNEL
+              value: "chat_events"
+            - name: PUBLIC_BASE_URL
+              value: "https://chat.aditistays.com"
+            - name: ADMIN_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: admin_api_token
+            - name: ADMIN_CHAT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: admin_chat_token
+            - name: USER_CHAT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: user_chat_token_secret
+            - name: CHAT_RATE_LIMIT_PER_MINUTE
+              value: "180"
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://aditistays.com,https://www.aditistays.com"
+            - name: MAX_UPLOAD_SIZE_MB
+              value: "8"
+            - name: STORAGE_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: storage_backend
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: s3_bucket
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: s3_region
+            - name: S3_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: s3_endpoint_url
+            - name: S3_PUBLIC_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: s3_public_base_url
+            - name: S3_PREFIX
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: s3_prefix
+            - name: WHATSAPP_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: whatsapp_provider
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: twilio_account_sid
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: twilio_auth_token
+            - name: TWILIO_WHATSAPP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: twilio_whatsapp_from
+            - name: META_WHATSAPP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: meta_whatsapp_token
+            - name: META_PHONE_NUMBER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: meta_phone_number_id
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: db-bootstrap-sql
+          configMap:
+            name: aditi-db-bootstrap
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-service
+  namespace: aditi-stays
+  labels:
+    app: chat-service
+spec:
+  selector:
+    app: chat-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

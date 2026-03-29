@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: aditi-stays
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: core-api
+  template:
+    metadata:
+      labels:
+        app: core-api
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: core-api
+                topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: db-bootstrap
+          image: postgres:16-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready -d "$DATABASE_URL" >/dev/null 2>&1; do sleep 2; done
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /bootstrap/init.sql
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: database_url
+          volumeMounts:
+            - name: db-bootstrap-sql
+              mountPath: /bootstrap
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: core-api
+          image: core-api:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: APP_PORT
+              value: "8080"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: database_url
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: redis_addr
+            - name: CHAT_NOTIFICATION_CHANNEL
+              value: "lead_notifications"
+            - name: ADMIN_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: admin_api_token
+            - name: USER_CHAT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: aditi-stays-secrets
+                  key: user_chat_token_secret
+            - name: GLOBAL_RATE_LIMIT_PER_MINUTE
+              value: "120"
+            - name: LEAD_RATE_LIMIT_PER_MINUTE
+              value: "20"
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://aditistays.com,https://www.aditistays.com"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: db-bootstrap-sql
+          configMap:
+            name: aditi-db-bootstrap
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-api
+  namespace: aditi-stays
+  labels:
+    app: core-api
+spec:
+  selector:
+    app: core-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

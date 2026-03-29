@@ -1,0 +1,115 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aditi_stays}
+      POSTGRES_USER: ${POSTGRES_USER:-aditi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aditi123}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/local/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aditi} -d ${POSTGRES_DB:-aditi_stays}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 2s
+
+  core-api:
+    build:
+      context: ./core-api
+    environment:
+      APP_PORT: ${CORE_API_PORT:-8080}
+      DATABASE_URL: postgres://${POSTGRES_USER:-aditi}:${POSTGRES_PASSWORD:-aditi123}@postgres:5432/${POSTGRES_DB:-aditi_stays}?sslmode=disable
+      REDIS_ADDR: redis:6379
+      REDIS_DB: 0
+      REDIS_PASSWORD: ""
+      CHAT_NOTIFICATION_CHANNEL: lead_notifications
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN}
+      USER_CHAT_TOKEN_SECRET: ${USER_CHAT_TOKEN_SECRET}
+      GLOBAL_RATE_LIMIT_PER_MINUTE: ${GLOBAL_RATE_LIMIT_PER_MINUTE:-120}
+      LEAD_RATE_LIMIT_PER_MINUTE: ${LEAD_RATE_LIMIT_PER_MINUTE:-20}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    ports:
+      - "${CORE_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: ./chat-service
+    environment:
+      APP_PORT: ${CHAT_SERVICE_PORT:-8000}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aditi}:${POSTGRES_PASSWORD:-aditi123}@postgres:5432/${POSTGRES_DB:-aditi_stays}
+      REDIS_URL: redis://redis:6379/0
+      LEAD_NOTIFICATION_CHANNEL: lead_notifications
+      CHAT_EVENTS_CHANNEL: chat_events
+      UPLOAD_DIR: /app/uploads
+      PUBLIC_BASE_URL: http://localhost:8000
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN}
+      ADMIN_CHAT_TOKEN: ${ADMIN_CHAT_TOKEN}
+      USER_CHAT_TOKEN_SECRET: ${USER_CHAT_TOKEN_SECRET}
+      CHAT_RATE_LIMIT_PER_MINUTE: ${CHAT_RATE_LIMIT_PER_MINUTE:-180}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-8}
+      BANNER_MAX_UPLOAD_SIZE_MB: ${BANNER_MAX_UPLOAD_SIZE_MB:-120}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      S3_PREFIX: ${S3_PREFIX:-payment-proofs}
+      DB_CONNECT_RETRIES: ${DB_CONNECT_RETRIES:-30}
+      DB_CONNECT_RETRY_DELAY_SECONDS: ${DB_CONNECT_RETRY_DELAY_SECONDS:-1.5}
+      REDIS_CONNECT_RETRIES: ${REDIS_CONNECT_RETRIES:-30}
+      REDIS_CONNECT_RETRY_DELAY_SECONDS: ${REDIS_CONNECT_RETRY_DELAY_SECONDS:-1.0}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-stub}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-}
+      META_WHATSAPP_TOKEN: ${META_WHATSAPP_TOKEN:-}
+      META_PHONE_NUMBER_ID: ${META_PHONE_NUMBER_ID:-}
+    ports:
+      - "${CHAT_SERVICE_PORT:-8000}:8000"
+    volumes:
+      - ./chat-service/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      PORT: ${FRONTEND_PORT:-3000}
+      NEXT_PUBLIC_CORE_API_URL: http://localhost:${CORE_API_PORT:-8080}
+      NEXT_PUBLIC_CHAT_HTTP_URL: http://localhost:${CHAT_SERVICE_PORT:-8000}
+      NEXT_PUBLIC_CHAT_WS_URL: ws://localhost:${CHAT_SERVICE_PORT:-8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      core-api:
+        condition: service_started
+      chat-service:
+        condition: service_started
+
+volumes:
+  pgdata:

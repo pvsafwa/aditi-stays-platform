@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aditi-stays-alert-rules
+  namespace: aditi-stays
+spec:
+  groups:
+    - name: aditi-stays-platform
+      rules:
+        - alert: CoreApiHigh5xxRate
+          expr: sum(rate(aditi_core_requests_by_status_total{status=~"5.."}[5m])) > 1
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Core API 5xx rate is high"
+            description: "Core API is returning >1 5xx/sec for 10 minutes."
+
+        - alert: ChatServiceHigh5xxRate
+          expr: sum(rate(aditi_chat_requests_by_status_total{status=~"5.."}[5m])) > 1
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Chat service 5xx rate is high"
+            description: "Chat service is returning >1 5xx/sec for 10 minutes."
+
+        - alert: LowInquiryConversion
+          expr: |
+            (
+              sum(aditi_core_requests_by_route_total{route="/api/leads/check-availability"})
+              -
+              sum(aditi_core_requests_by_route_total{route="/api/admin/leads/:leadId/confirm"})
+            ) > 100
+          for: 2h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Inquiry-to-confirmation gap growing"
+            description: "More than 100 inquiries are not converted within the last period."
