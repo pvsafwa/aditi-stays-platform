@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aditi-stays-alb
+  namespace: applications
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/group.name: aditi-stays
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /ws/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 8000
+          - path: /api/chat
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 8000
+          - path: /api/admin/banners/upload
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 8000
+          - path: /api/admin/properties/upload-image
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 8000
+          - path: /uploads
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-service
+                port:
+                  number: 8000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000

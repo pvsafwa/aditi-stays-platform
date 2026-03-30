@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: aditi-stays
+spec:
+  replicas: 1
+  strategy:
+    $patch: replace
+    type: Recreate
+  template:
+    spec:
+      affinity: {}
+      containers:
+        - name: core-api
+          env:
+            - name: CORS_ALLOWED_ORIGINS
+              value: "*"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"

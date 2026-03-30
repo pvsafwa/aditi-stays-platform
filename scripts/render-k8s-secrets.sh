@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_FILE="${1:-$ROOT_DIR/infra/k8s/base/secrets.generated.yaml}"
+K8S_NAMESPACE="${K8S_NAMESPACE:-aditi-stays}"
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
 : "${CHAT_DATABASE_URL:?CHAT_DATABASE_URL is required}"
@@ -30,7 +31,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: aditi-stays-secrets
-  namespace: aditi-stays
+  namespace: $K8S_NAMESPACE
 type: Opaque
 stringData:
   database_url: "$DATABASE_URL"
