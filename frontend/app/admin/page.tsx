@@ -1,6 +1,5 @@
 "use client";
 
-import { Minimize2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ChatWindow from "@/components/ChatWindow";
 import {
@@ -94,6 +93,7 @@ type PropertyFormState = {
 
 type LeadSearchMode = "all" | "open" | "closed";
 type BannerSourceMode = "link" | "local_upload";
+type AdminView = "dashboard" | "properties" | "heroVideos" | "conversations" | "leadOps";
 const HERO_FALLBACK_COVER = "https://images.unsplash.com/photo-1527631746610-bca00a040d60";
 const DIRECT_VIDEO_URL_REGEX = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
 
@@ -215,9 +215,7 @@ export default function AdminPage() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
-  const [adminChatVisible, setAdminChatVisible] = useState(false);
-  const [adminChatEnabled, setAdminChatEnabled] = useState(false);
-  const [adminChatUnread, setAdminChatUnread] = useState(0);
+  const [activeView, setActiveView] = useState<AdminView>("dashboard");
   const [context, setContext] = useState<LeadContextData | null>(null);
   const [daily, setDaily] = useState<DailySnapshot | null>(null);
   const [summary, setSummary] = useState<SummarySnapshot | null>(null);
@@ -383,9 +381,7 @@ export default function AdminPage() {
     setIsAuthenticated(false);
     setLeads([]);
     setSelectedLeadId(null);
-    setAdminChatVisible(false);
-    setAdminChatEnabled(false);
-    setAdminChatUnread(0);
+    setActiveView("dashboard");
     setContext(null);
     setDaily(null);
     setSummary(null);
@@ -853,6 +849,15 @@ export default function AdminPage() {
   };
 
   const parsedMedia = parseList(propertyForm.media);
+  const selectedLeadStatus = selectedLead?.status || context?.lead?.status || "NEW_INQUIRY";
+  const selectedLeadProperty = selectedLead?.property_id || context?.lead?.property_id || "Property";
+
+  const navButtonClass = (view: AdminView) =>
+    `w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+      activeView === view
+        ? "border-mint/70 bg-mint/12 text-foreground shadow-[0_14px_34px_-28px_rgba(83,216,196,0.8)]"
+        : "border-border/60 bg-background/55 text-foreground/85 hover:border-mint/40 hover:bg-mint/5"
+    }`;
 
   if (authChecking) {
     return (
@@ -927,122 +932,520 @@ export default function AdminPage() {
         {uiError ? <p className="mt-2 text-xs text-rose-600">{uiError}</p> : null}
       </header>
 
-      <section className="mt-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Today Inquiries</p>
-          <p className="text-2xl font-bold text-foreground">{daily?.inquiries ?? 0}</p>
-        </div>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Today Bookings</p>
-          <p className="text-2xl font-bold text-foreground">{daily?.bookings ?? 0}</p>
-        </div>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Advance Collected</p>
-          <p className="text-2xl font-bold text-foreground">₹{summary?.total_advance_sum ?? 0}</p>
-        </div>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Full Payments</p>
-          <p className="text-2xl font-bold text-foreground">₹{summary?.total_full_sum ?? 0}</p>
-        </div>
-      </section>
-
-      <section className="mt-6 grid gap-4 xl:grid-cols-2">
-        <div className="rounded-2xl border border-border/60 bg-card/72 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)] backdrop-blur-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Current Properties</h2>
-              <p className="text-xs text-muted-foreground">Add, edit, deactivate and upload local images.</p>
-            </div>
-            <button onClick={openCreatePropertyModal} className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">
-              Add Property
+      <div className="mt-6 grid gap-4 xl:grid-cols-[320px_1fr]">
+        <aside className="flex h-[calc(100vh-150px)] min-h-[760px] flex-col gap-4 rounded-[28px] border border-border/60 bg-card/78 p-4 shadow-[0_24px_54px_-42px_rgba(8,31,45,0.76)] backdrop-blur-xl xl:sticky xl:top-6">
+          <div className="space-y-2">
+            <button type="button" onClick={() => setActiveView("dashboard")} className={navButtonClass("dashboard")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Menu</span>
+              <span className="mt-1 block">Dashboard</span>
+            </button>
+            <button type="button" onClick={() => setActiveView("properties")} className={navButtonClass("properties")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Menu</span>
+              <span className="mt-1 block">Current Properties</span>
+            </button>
+            <button type="button" onClick={() => setActiveView("heroVideos")} className={navButtonClass("heroVideos")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Menu</span>
+              <span className="mt-1 block">Hero Videos</span>
             </button>
           </div>
-          {propertyNotice ? <p className="mt-2 text-xs text-mint">{propertyNotice}</p> : null}
-          <div className="mt-3 max-h-[300px] space-y-2 overflow-y-auto pr-1 text-xs">
-            {properties.map((property) => (
-              <div key={property.id} className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold text-foreground">{property.id}</p>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] ${
-                      property.active ? "bg-mint/15 text-mint" : "bg-rose-500/15 text-rose-500"
-                    }`}
-                  >
-                    {property.active ? "ACTIVE" : "INACTIVE"}
-                  </span>
+
+          <div className="rounded-2xl border border-border/60 bg-background/55 p-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Selected Lead</p>
+            {selectedLeadId ? (
+              <>
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  #{selectedLeadId} · {selectedLeadProperty}
+                </p>
+                <p className="text-xs text-muted-foreground">{selectedLead?.customer_name || context?.lead?.customer_name || "-"}</p>
+                <p className="text-xs text-muted-foreground">{selectedLead?.mobile_number || context?.lead?.mobile_number || "-"}</p>
+                <span className="mt-3 inline-flex rounded-full border border-border/60 bg-card/80 px-2.5 py-1 text-[10px] font-semibold text-foreground/80">
+                  {selectedLeadStatus}
+                </span>
+              </>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">Pick a lead from the conversation list to open chat or lead operations.</p>
+            )}
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border/60 bg-background/55 p-3">
+            <button type="button" onClick={() => setActiveView("conversations")} className={navButtonClass("conversations")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
+              <span className="mt-1 block">Conversation Box</span>
+            </button>
+            <p className="mt-3 text-xs text-muted-foreground">Lead chats stay here. Pick a conversation and the right panel becomes the live chat window.</p>
+            <input
+              value={leadSearch}
+              onChange={(e) => setLeadSearch(e.target.value)}
+              placeholder="Search id/name/mobile/property/message"
+              className="mt-3 w-full rounded-xl border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-mint/40"
+            />
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              <button
+                onClick={() => setLeadFilterMode("all")}
+                className={`rounded-full border px-3 py-1 ${
+                  leadFilterMode === "all" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+                }`}
+              >
+                All ({leadCounts.all})
+              </button>
+              <button
+                onClick={() => setLeadFilterMode("open")}
+                className={`rounded-full border px-3 py-1 ${
+                  leadFilterMode === "open" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+                }`}
+              >
+                Open ({leadCounts.open})
+              </button>
+              <button
+                onClick={() => setLeadFilterMode("closed")}
+                className={`rounded-full border px-3 py-1 ${
+                  leadFilterMode === "closed" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+                }`}
+              >
+                Closed ({leadCounts.closed})
+              </button>
+            </div>
+            <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {filteredLeads.map((lead) => (
+                <button
+                  key={lead.id}
+                  onClick={() => {
+                    setSelectedLeadId(lead.id);
+                    setActiveView("conversations");
+                  }}
+                  className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
+                    selectedLeadId === lead.id
+                      ? "border-mint/70 bg-mint/10 shadow-[0_12px_28px_-24px_rgba(83,216,196,0.85)]"
+                      : "border-border/60 bg-card/80 hover:border-mint/40 hover:bg-mint/5"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold text-foreground">
+                      #{lead.id} · {lead.property_id}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">{formatLeadTime(lead.last_message_at || lead.updated_at)}</span>
+                  </div>
+                  <p className="line-clamp-1 text-foreground">{lead.customer_name}</p>
+                  <p className="text-xs text-muted-foreground">{lead.mobile_number}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {lead.last_message ? `${lead.last_sender_role || "System"}: ${lead.last_message}` : "No chat messages yet."}
+                  </p>
+                  <div className="mt-1">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] ${
+                        openStatuses.has(lead.status.toUpperCase()) ? "bg-mint/15 text-mint" : "bg-background/80 text-muted-foreground"
+                      }`}
+                    >
+                      {lead.status}
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {selectedLeadId && !filteredLeads.some((lead) => lead.id === selectedLeadId) ? (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  Lead #{selectedLeadId} is outside current filter. Adjust filter to view it in the conversation list.
                 </div>
-                <p className="text-muted-foreground">{property.location} · ₹{property.nightly_price}</p>
-                <div className="mt-2 flex gap-2">
-                  <button onClick={() => startEditProperty(property)} className="rounded-lg border border-border/60 px-2 py-1 text-[10px] text-foreground/85">
-                    Edit
-                  </button>
-                  <button onClick={() => void removeProperty(property.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-[10px] text-rose-600">
-                    Deactivate
-                  </button>
+              ) : null}
+              {filteredLeads.length === 0 ? <p className="text-xs text-muted-foreground">No conversations match this filter.</p> : null}
+            </div>
+          </div>
+
+          <button type="button" onClick={() => setActiveView("leadOps")} className={navButtonClass("leadOps")}>
+            <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
+            <span className="mt-1 block">Lead Operations</span>
+          </button>
+        </aside>
+
+        <section className="min-h-[calc(100vh-150px)] rounded-[28px] border border-border/60 bg-card/76 p-4 shadow-[0_24px_54px_-42px_rgba(8,31,45,0.76)] backdrop-blur-xl md:p-5">
+          {activeView === "dashboard" ? (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-foreground">Dashboard</h2>
+                <p className="text-sm text-muted-foreground">Daily business snapshot and lead overview.</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)]">
+                  <p className="text-xs text-muted-foreground">Today Inquiries</p>
+                  <p className="text-2xl font-bold text-foreground">{daily?.inquiries ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)]">
+                  <p className="text-xs text-muted-foreground">Today Bookings</p>
+                  <p className="text-2xl font-bold text-foreground">{daily?.bookings ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)]">
+                  <p className="text-xs text-muted-foreground">Advance Collected</p>
+                  <p className="text-2xl font-bold text-foreground">₹{summary?.total_advance_sum ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)]">
+                  <p className="text-xs text-muted-foreground">Full Payments</p>
+                  <p className="text-2xl font-bold text-foreground">₹{summary?.total_full_sum ?? 0}</p>
                 </div>
               </div>
-            ))}
-            {properties.length === 0 ? <p className="text-muted-foreground">No properties found.</p> : null}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border/60 bg-card/72 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)] backdrop-blur-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Hero Videos</h2>
-              <p className="text-xs text-muted-foreground">Manage hero background video playlist for the home page.</p>
-            </div>
-            <button
-              onClick={() => {
-                resetBannerForm();
-                setBannerNotice(null);
-                setBannerModalOpen(true);
-              }}
-              className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
-            >
-              Add Hero Video
-            </button>
-          </div>
-          {bannerNotice ? <p className="mt-2 text-xs text-mint">{bannerNotice}</p> : null}
-          <div className="mt-3 max-h-[300px] space-y-2 overflow-y-auto pr-1">
-            {videos.map((video) => (
-              <article key={video.id} className="overflow-hidden rounded-xl border border-border/60 bg-background/60">
-                <img
-                  src={video.cover_url || "https://images.unsplash.com/photo-1527631746610-bca00a040d60"}
-                  alt={video.title}
-                  className="h-28 w-full object-cover"
-                />
-                <div className="p-3">
-                  <p className="text-xs text-mint">{video.platform}</p>
-                  <p className="line-clamp-1 text-sm font-semibold text-foreground">{video.title}</p>
-                  {video.metadata?.quality ? (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {String(video.metadata.quality)} · {String(video.metadata.bitrate_kbps || "")} kbps
-                    </p>
-                  ) : null}
-                  <div className="mt-2 flex gap-2">
-                    <a
-                      href={video.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85"
-                    >
-                      Open
-                    </a>
-                    <button onClick={() => startEditBanner(video)} className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85">
-                      Edit
-                    </button>
-                    <button onClick={() => removeVideoBanner(video.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-xs text-rose-600">
-                      Remove
-                    </button>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Lead Snapshot</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-3">
+                      <p className="text-[11px] text-muted-foreground">All Leads</p>
+                      <p className="mt-1 text-xl font-bold text-foreground">{leadCounts.all}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-3">
+                      <p className="text-[11px] text-muted-foreground">Open Leads</p>
+                      <p className="mt-1 text-xl font-bold text-foreground">{leadCounts.open}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-3">
+                      <p className="text-[11px] text-muted-foreground">Closed Leads</p>
+                      <p className="mt-1 text-xl font-bold text-foreground">{leadCounts.closed}</p>
+                    </div>
                   </div>
                 </div>
-              </article>
-            ))}
-            {videos.length === 0 ? <p className="text-xs text-muted-foreground">No hero videos added.</p> : null}
-          </div>
-        </div>
-      </section>
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Working Context</p>
+                  <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+                    <p>This admin portal now keeps navigation fixed on the left so operations feel more like a CRM workspace.</p>
+                    <p>
+                      Use <span className="font-semibold text-foreground">Conversation Box</span> for live chat, and
+                      <span className="font-semibold text-foreground"> Lead Operations</span> for payment, inventory, QR, and audit details.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "properties" ? (
+            <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Current Properties</h2>
+                  <p className="text-xs text-muted-foreground">Add, edit, deactivate and upload local images.</p>
+                </div>
+                <button onClick={openCreatePropertyModal} className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">
+                  Add Property
+                </button>
+              </div>
+              {propertyNotice ? <p className="mt-2 text-xs text-mint">{propertyNotice}</p> : null}
+              <div className="mt-4 grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                {properties.map((property) => (
+                  <div key={property.id} className="rounded-xl border border-border/60 bg-card/80 px-3 py-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-foreground">{property.id}</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] ${
+                          property.active ? "bg-mint/15 text-mint" : "bg-rose-500/15 text-rose-500"
+                        }`}
+                      >
+                        {property.active ? "ACTIVE" : "INACTIVE"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{property.location}</p>
+                    <p className="text-muted-foreground">₹{property.nightly_price}</p>
+                    <div className="mt-3 flex gap-2">
+                      <button onClick={() => startEditProperty(property)} className="rounded-lg border border-border/60 px-2 py-1 text-[10px] text-foreground/85">
+                        Edit
+                      </button>
+                      <button onClick={() => void removeProperty(property.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-[10px] text-rose-600">
+                        Deactivate
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {properties.length === 0 ? <p className="text-sm text-muted-foreground">No properties found.</p> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "heroVideos" ? (
+            <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Hero Videos</h2>
+                  <p className="text-xs text-muted-foreground">Manage hero background video playlist for the home page.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    resetBannerForm();
+                    setBannerNotice(null);
+                    setBannerModalOpen(true);
+                  }}
+                  className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
+                >
+                  Add Hero Video
+                </button>
+              </div>
+              {bannerNotice ? <p className="mt-2 text-xs text-mint">{bannerNotice}</p> : null}
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {videos.map((video) => (
+                  <article key={video.id} className="overflow-hidden rounded-xl border border-border/60 bg-card/80">
+                    <img
+                      src={video.cover_url || "https://images.unsplash.com/photo-1527631746610-bca00a040d60"}
+                      alt={video.title}
+                      className="h-32 w-full object-cover"
+                    />
+                    <div className="p-3">
+                      <p className="text-xs text-mint">{video.platform}</p>
+                      <p className="line-clamp-1 text-sm font-semibold text-foreground">{video.title}</p>
+                      {video.metadata?.quality ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {String(video.metadata.quality)} · {String(video.metadata.bitrate_kbps || "")} kbps
+                        </p>
+                      ) : null}
+                      <div className="mt-3 flex gap-2">
+                        <a
+                          href={video.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85"
+                        >
+                          Open
+                        </a>
+                        <button onClick={() => startEditBanner(video)} className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85">
+                          Edit
+                        </button>
+                        <button onClick={() => removeVideoBanner(video.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-xs text-rose-600">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+                {videos.length === 0 ? <p className="text-sm text-muted-foreground">No hero videos added.</p> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "conversations" ? (
+            selectedLeadId ? (
+              <div className="flex h-[calc(100vh-190px)] min-h-[700px] flex-col">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-foreground">Conversation Box</h2>
+                    <p className="text-xs text-muted-foreground">
+                      Live chat for lead #{selectedLeadId} · {selectedLeadProperty}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
+                    {selectedLeadStatus}
+                  </span>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background/60 p-2">
+                  <ChatWindow
+                    leadId={selectedLead?.id || selectedLeadId}
+                    role="admin"
+                    actor={session.actor}
+                    authToken={session.chatToken || session.apiToken}
+                    fillHeight
+                    showProofUpload={false}
+                    isVisible={activeView === "conversations"}
+                    quickActions={adminChatQuickActions}
+                    onQuickAction={handleAdminChatQuickAction}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-[calc(100vh-190px)] min-h-[620px] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background/65 text-sm text-muted-foreground">
+                Select a lead from the left-side conversation list to open the chat window here.
+              </div>
+            )
+          ) : null}
+
+          {activeView === "leadOps" ? (
+            selectedLeadId ? (
+              <div className="h-[calc(100vh-190px)] min-h-[700px] overflow-y-auto pr-1">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-bold text-foreground">Lead Operations</h2>
+                    <p className="text-xs text-muted-foreground">All payment, inventory, QR, and customer context tools for the selected lead.</p>
+                  </div>
+                  <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
+                    {selectedLeadStatus}
+                  </span>
+                </div>
+
+                <div className="space-y-3 pb-2">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Lead</p>
+                      <p className="mt-1 font-semibold text-foreground">{context?.lead?.customer_name || selectedLead?.customer_name || "-"}</p>
+                      <p className="text-muted-foreground">{context?.lead?.mobile_number || selectedLead?.mobile_number || "-"}</p>
+                      <p className="mt-1 text-muted-foreground">Property: {selectedLeadProperty}</p>
+                      <p className="text-muted-foreground">Status: {selectedLeadStatus}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Payments</p>
+                      <p className="mt-1 text-foreground/85">Advance: {asMoney(paymentSummary.advance_total)}</p>
+                      <p className="text-foreground/85">Full: {asMoney(paymentSummary.full_total)}</p>
+                      <p className="text-foreground/85">Total: {asMoney(paymentSummary.total)}</p>
+                      <p className="text-foreground/85">Entries: {Number(paymentSummary.count || 0)}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                    <p className="text-sm font-semibold text-foreground">Pre-Chat Intelligence</p>
+                    <div className="mt-2 grid gap-3 md:grid-cols-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Browsing History</p>
+                        <ul className="mt-1 space-y-1 text-sm text-foreground/85">
+                          {(context?.browsing_history || []).length === 0 ? <li className="text-muted-foreground">No browsing records.</li> : null}
+                          {(context?.browsing_history || []).map((it, idx) => (
+                            <li key={`${it.property_id}-${idx}`}>
+                              {it.property_id} · {it.viewed_at ? new Date(it.viewed_at).toLocaleString() : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Wishlist</p>
+                        <ul className="mt-1 space-y-1 text-sm text-foreground/85">
+                          {(context?.wishlist || []).length === 0 ? <li className="text-muted-foreground">No wishlist items.</li> : null}
+                          {(context?.wishlist || []).map((it) => (
+                            <li key={it.id}>{it.id}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                      <p className="text-sm font-semibold text-foreground">Share GPay in Chat</p>
+                      {gpayNotice ? <p className="mt-2 text-xs text-mint">{gpayNotice}</p> : null}
+                      {qrUrl ? (
+                        <img src={qrUrl} alt="GPay QR" className="mt-2 h-28 w-28 rounded-xl border border-border/60 object-cover" />
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">No QR uploaded.</p>
+                      )}
+                      <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-border/60 bg-card/70 px-3 py-2 text-xs text-foreground/85">
+                        {gpayUploadBusy ? "Uploading..." : qrUrl ? "Replace QR Image" : "Upload QR Image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={gpayUploadBusy}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            void uploadGpayQrImage(file);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      {qrUrl ? (
+                        <button
+                          onClick={removeGpayQrImage}
+                          className="mt-2 block rounded-lg border border-rose-300/70 px-3 py-2 text-xs text-rose-600"
+                        >
+                          Remove QR Image
+                        </button>
+                      ) : null}
+                      <input
+                        value={gpayNumber}
+                        onChange={(e) => setGpayNumber(e.target.value)}
+                        placeholder="GPay mobile"
+                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+                      />
+                      <button
+                        onClick={() => void runShareGpay()}
+                        disabled={gpayUploadBusy}
+                        className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
+                      >
+                        Send GPay Details
+                      </button>
+                    </div>
+
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                      <p className="text-sm font-semibold text-foreground">Inventory Check</p>
+                      <textarea
+                        value={inventoryNote}
+                        onChange={(e) => setInventoryNote(e.target.value)}
+                        className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      />
+                      <div className="mt-2 flex gap-2">
+                        <button onClick={() => void runInventory(true)} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
+                          Available
+                        </button>
+                        <button onClick={() => void runInventory(false)} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white">
+                          Not Available
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                      <p className="text-sm font-semibold text-foreground">Payment Entry</p>
+                      <input
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
+                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      />
+                      <select
+                        value={paymentType}
+                        onChange={(e) => setPaymentType(e.target.value as "ADVANCE" | "FULL")}
+                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      >
+                        <option value="ADVANCE">ADVANCE</option>
+                        <option value="FULL">FULL</option>
+                      </select>
+                      <button onClick={() => void runAddPayment()} className="mt-2 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
+                        Save Payment
+                      </button>
+                    </div>
+
+                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                      <p className="text-sm font-semibold text-foreground">Confirmation + WhatsApp</p>
+                      <textarea
+                        value={confirmDetails}
+                        onChange={(e) => setConfirmDetails(e.target.value)}
+                        className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      />
+                      <input
+                        value={whatsapp}
+                        onChange={(e) => setWhatsapp(e.target.value)}
+                        placeholder="WhatsApp Number"
+                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+                      />
+                      <button onClick={() => void runConfirm()} className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900">
+                        Send Confirmed Status
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                    <p className="text-sm font-semibold text-foreground">Payment Ledger</p>
+                    <div className="mt-2 max-h-36 space-y-2 overflow-y-auto text-xs">
+                      {paymentRows.length === 0 ? <p className="text-muted-foreground">No payment entries for this lead.</p> : null}
+                      {paymentRows.map((row) => (
+                        <div key={row.id} className="rounded-lg border border-slate-200 bg-card/80 p-2 text-foreground/85">
+                          {row.payment_type} · {asMoney(row.amount)} · {row.created_at ? new Date(row.created_at).toLocaleString() : ""}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                    <p className="text-sm font-semibold text-foreground">Recorded Chat History</p>
+                    <div className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs">
+                      {chatHistory.length === 0 ? <p className="text-muted-foreground">No recorded messages yet.</p> : null}
+                      {chatHistory.map((m, idx) => (
+                        <div key={`${idx}-${m.created_at || idx}`} className="rounded-lg border border-slate-200 bg-card/80 p-2">
+                          <p className="text-teal-700">{m.sender_label || m.sender_role || "System"}</p>
+                          <p className="text-foreground/85">{m.content || "-"}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {m.message_type || "TEXT"} · {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-[calc(100vh-190px)] min-h-[620px] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background/65 text-sm text-muted-foreground">
+                Select a lead from the left-side conversation list, then open Lead Operations from the menu below it.
+              </div>
+            )
+          ) : null}
+        </section>
+      </div>
 
       {propertyModalOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
@@ -1270,374 +1673,6 @@ export default function AdminPage() {
               >
                 Cancel
               </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <section className="mt-6 grid gap-4 xl:grid-cols-[360px_1fr]">
-        <aside className="rounded-2xl border border-border/60 bg-card/74 p-4 shadow-[0_18px_46px_-34px_rgba(8,31,45,0.72)] backdrop-blur-xl">
-          <h2 className="font-bold text-foreground">Conversation Inbox</h2>
-          <p className="text-xs text-muted-foreground">Ongoing and completed threads in one place.</p>
-          <input
-            value={leadSearch}
-            onChange={(e) => setLeadSearch(e.target.value)}
-            placeholder="Search id/name/mobile/property/message"
-            className="mt-2 w-full rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-mint/40"
-          />
-          <div className="mt-2 flex gap-2 text-xs">
-            <button
-              onClick={() => setLeadFilterMode("all")}
-              className={`rounded-full border px-3 py-1 ${
-                leadFilterMode === "all" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
-              }`}
-            >
-              All ({leadCounts.all})
-            </button>
-            <button
-              onClick={() => setLeadFilterMode("open")}
-              className={`rounded-full border px-3 py-1 ${
-                leadFilterMode === "open" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
-              }`}
-            >
-              Open ({leadCounts.open})
-            </button>
-            <button
-              onClick={() => setLeadFilterMode("closed")}
-              className={`rounded-full border px-3 py-1 ${
-                leadFilterMode === "closed" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
-              }`}
-            >
-              Closed ({leadCounts.closed})
-            </button>
-          </div>
-          <div className="mt-3 max-h-[calc(100vh-270px)] space-y-2 overflow-y-auto pr-1">
-            {filteredLeads.map((lead) => (
-              <button
-                key={lead.id}
-                onClick={() => {
-                  setSelectedLeadId(lead.id);
-                  setAdminChatEnabled(true);
-                  setAdminChatVisible(false);
-                  setAdminChatUnread(0);
-                }}
-                className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
-                  selectedLeadId === lead.id
-                    ? "border-mint/70 bg-mint/10 shadow-[0_12px_28px_-24px_rgba(83,216,196,0.85)]"
-                    : "border-border/60 bg-background/55 hover:border-mint/40 hover:bg-mint/5"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold text-foreground">
-                    #{lead.id} · {lead.property_id}
-                  </p>
-                  <span className="text-[10px] text-muted-foreground">{formatLeadTime(lead.last_message_at || lead.updated_at)}</span>
-                </div>
-                <p className="line-clamp-1 text-foreground">{lead.customer_name}</p>
-                <p className="text-xs text-muted-foreground">{lead.mobile_number}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                  {lead.last_message ? `${lead.last_sender_role || "System"}: ${lead.last_message}` : "No chat messages yet."}
-                </p>
-                <div className="mt-1">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] ${
-                      openStatuses.has(lead.status.toUpperCase()) ? "bg-mint/15 text-mint" : "bg-background/80 text-muted-foreground"
-                    }`}
-                  >
-                    {lead.status}
-                  </span>
-                </div>
-              </button>
-            ))}
-            {selectedLeadId && !filteredLeads.some((lead) => lead.id === selectedLeadId) ? (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Lead #{selectedLeadId} is outside current filter. Adjust filter to view it in inbox.
-              </div>
-            ) : null}
-            {filteredLeads.length === 0 ? <p className="text-xs text-muted-foreground">No conversations match this filter.</p> : null}
-          </div>
-        </aside>
-
-        <section className="rounded-2xl border border-border/60 bg-card/74 p-4 shadow-[0_18px_46px_-34px_rgba(8,31,45,0.72)] backdrop-blur-xl">
-          {selectedLeadId ? (
-            <div className="h-[calc(100vh-265px)] min-h-[540px] max-h-[760px] overflow-y-auto pr-1">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 className="font-bold text-foreground">Lead #{selectedLeadId}</h2>
-                  <p className="text-xs text-muted-foreground">Operations panel is fixed here. Live chat opens at bottom-right.</p>
-                </div>
-                <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
-                  {selectedLead?.status || context?.lead?.status || "NEW_INQUIRY"}
-                </span>
-              </div>
-
-              <div className="space-y-3 pb-2">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Lead</p>
-                    <p className="mt-1 font-semibold text-foreground">{context?.lead?.customer_name || selectedLead?.customer_name || "-"}</p>
-                    <p className="text-muted-foreground">{context?.lead?.mobile_number || selectedLead?.mobile_number || "-"}</p>
-                    <p className="mt-1 text-muted-foreground">Property: {context?.lead?.property_id || selectedLead?.property_id || "-"}</p>
-                    <p className="text-muted-foreground">Status: {context?.lead?.status || selectedLead?.status || "-"}</p>
-                  </div>
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Payments</p>
-                    <p className="mt-1 text-foreground/85">Advance: {asMoney(paymentSummary.advance_total)}</p>
-                    <p className="text-foreground/85">Full: {asMoney(paymentSummary.full_total)}</p>
-                    <p className="text-foreground/85">Total: {asMoney(paymentSummary.total)}</p>
-                    <p className="text-foreground/85">Entries: {Number(paymentSummary.count || 0)}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Pre-Chat Intelligence</p>
-                  <div className="mt-2 grid gap-3 md:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Browsing History</p>
-                      <ul className="mt-1 space-y-1 text-sm text-foreground/85">
-                        {(context?.browsing_history || []).length === 0 ? <li className="text-muted-foreground">No browsing records.</li> : null}
-                        {(context?.browsing_history || []).map((it, idx) => (
-                          <li key={`${it.property_id}-${idx}`}>
-                            {it.property_id} · {it.viewed_at ? new Date(it.viewed_at).toLocaleString() : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Wishlist</p>
-                      <ul className="mt-1 space-y-1 text-sm text-foreground/85">
-                        {(context?.wishlist || []).length === 0 ? <li className="text-muted-foreground">No wishlist items.</li> : null}
-                        {(context?.wishlist || []).map((it) => (
-                          <li key={it.id}>{it.id}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Share GPay in Chat</p>
-                    {gpayNotice ? <p className="mt-2 text-xs text-mint">{gpayNotice}</p> : null}
-                    {qrUrl ? (
-                      <img
-                        src={qrUrl}
-                        alt="GPay QR"
-                        className="mt-2 h-28 w-28 rounded-xl border border-border/60 object-cover"
-                      />
-                    ) : (
-                      <p className="mt-2 text-xs text-muted-foreground">No QR uploaded.</p>
-                    )}
-                    <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-border/60 bg-card/70 px-3 py-2 text-xs text-foreground/85">
-                      {gpayUploadBusy ? "Uploading..." : qrUrl ? "Replace QR Image" : "Upload QR Image"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={gpayUploadBusy}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0] ?? null;
-                          void uploadGpayQrImage(file);
-                          e.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-                    {qrUrl ? (
-                      <button
-                        onClick={removeGpayQrImage}
-                        className="mt-2 block rounded-lg border border-rose-300/70 px-3 py-2 text-xs text-rose-600"
-                      >
-                        Remove QR Image
-                      </button>
-                    ) : null}
-                    <input
-                      value={gpayNumber}
-                      onChange={(e) => setGpayNumber(e.target.value)}
-                      placeholder="GPay mobile"
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
-                    />
-                    <button
-                      onClick={() => void runShareGpay()}
-                      disabled={gpayUploadBusy}
-                      className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
-                    >
-                      Send GPay Details
-                    </button>
-                  </div>
-
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Inventory Check</p>
-                    <textarea
-                      value={inventoryNote}
-                      onChange={(e) => setInventoryNote(e.target.value)}
-                      className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                    />
-                    <div className="mt-2 flex gap-2">
-                      <button onClick={() => void runInventory(true)} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
-                        Available
-                      </button>
-                      <button onClick={() => void runInventory(false)} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white">
-                        Not Available
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Payment Entry</p>
-                    <input
-                      type="number"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                    />
-                    <select
-                      value={paymentType}
-                      onChange={(e) => setPaymentType(e.target.value as "ADVANCE" | "FULL")}
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                    >
-                      <option value="ADVANCE">ADVANCE</option>
-                      <option value="FULL">FULL</option>
-                    </select>
-                    <button onClick={() => void runAddPayment()} className="mt-2 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
-                      Save Payment
-                    </button>
-                  </div>
-
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Confirmation + WhatsApp</p>
-                    <textarea
-                      value={confirmDetails}
-                      onChange={(e) => setConfirmDetails(e.target.value)}
-                      className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                    />
-                    <input
-                      value={whatsapp}
-                      onChange={(e) => setWhatsapp(e.target.value)}
-                      placeholder="WhatsApp Number"
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
-                    />
-                    <button onClick={() => void runConfirm()} className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900">
-                      Send Confirmed Status
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Payment Ledger</p>
-                  <div className="mt-2 max-h-36 space-y-2 overflow-y-auto text-xs">
-                    {paymentRows.length === 0 ? <p className="text-muted-foreground">No payment entries for this lead.</p> : null}
-                    {paymentRows.map((row) => (
-                      <div key={row.id} className="rounded-lg border border-slate-200 bg-card/80 p-2 text-foreground/85">
-                        {row.payment_type} · {asMoney(row.amount)} · {row.created_at ? new Date(row.created_at).toLocaleString() : ""}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                  <p className="text-sm font-semibold text-foreground">Recorded Chat History</p>
-                  <div className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs">
-                    {chatHistory.length === 0 ? <p className="text-muted-foreground">No recorded messages yet.</p> : null}
-                    {chatHistory.map((m, idx) => (
-                      <div key={`${idx}-${m.created_at || idx}`} className="rounded-lg border border-slate-200 bg-card/80 p-2">
-                        <p className="text-teal-700">{m.sender_label || m.sender_role || "System"}</p>
-                        <p className="text-foreground/85">{m.content || "-"}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {m.message_type || "TEXT"} · {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-[calc(100vh-265px)] min-h-[500px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/70 text-sm text-muted-foreground">
-              Select a lead from inbox to open operations and docked chat.
-            </div>
-          )}
-        </section>
-      </section>
-
-      {selectedLeadId && adminChatEnabled && !adminChatVisible ? (
-        <div className="fixed bottom-2 right-2 z-50 flex items-center gap-2 rounded-full border border-border/60 bg-card/90 px-2 py-2 shadow-xl backdrop-blur md:bottom-4 md:right-4">
-          <button
-            onClick={() => {
-              setAdminChatEnabled(true);
-              setAdminChatVisible(true);
-              setAdminChatUnread(0);
-            }}
-            className="relative rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"
-          >
-            Open Chat
-            {adminChatUnread > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-mint px-1 text-[10px] font-bold text-slate-900">
-                {adminChatUnread > 99 ? "99+" : adminChatUnread}
-              </span>
-            ) : null}
-          </button>
-          <button
-            onClick={() => {
-              setAdminChatEnabled(false);
-              setAdminChatVisible(false);
-              setAdminChatUnread(0);
-            }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-foreground/85 hover:bg-background"
-            aria-label="Close lead chat"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ) : null}
-
-      {selectedLeadId && adminChatEnabled ? (
-        <div
-          className={`fixed bottom-2 right-2 z-50 w-[calc(100vw-1rem)] max-w-[430px] transition duration-200 md:bottom-4 md:right-4 md:max-w-[420px] ${
-            adminChatVisible ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-3 opacity-0 pointer-events-none"
-          }`}
-        >
-          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-teal-700">Lead Chat</p>
-                <p className="text-xs font-semibold text-foreground">
-                  #{selectedLeadId} · {selectedLead?.property_id || context?.lead?.property_id || "Property"}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setAdminChatVisible(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
-                  aria-label="Minimize chat"
-                >
-                  <Minimize2 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    setAdminChatVisible(false);
-                    setAdminChatEnabled(false);
-                    setAdminChatUnread(0);
-                  }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
-                  aria-label="Close chat"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <div className="h-[76vh] min-h-[560px] max-h-[820px] p-2">
-              <ChatWindow
-                leadId={selectedLead?.id || selectedLeadId}
-                role="admin"
-                actor={session.actor}
-                authToken={session.chatToken || session.apiToken}
-                fillHeight
-                showProofUpload={false}
-                isVisible={adminChatVisible}
-                onUnreadCountChange={setAdminChatUnread}
-                quickActions={adminChatQuickActions}
-                onQuickAction={handleAdminChatQuickAction}
-              />
             </div>
           </div>
         </div>
