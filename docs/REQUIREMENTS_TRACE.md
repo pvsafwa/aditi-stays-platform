@@ -48,6 +48,6 @@
   - Redis event channels + active lead set.
   - PostgreSQL schema for all operational entities.
 - Infra and deployment:
-  - Terraform: VPC, RDS, ElastiCache Redis, EC2 K3s nodes, ECR repos.
+  - Terraform: VPC, RDS, ElastiCache Redis, S3, EC2 kubeadm nodes, ECR repos.
   - GitOps: GitHub Actions updates manifests, ArgoCD sync manifest included.
   - Recovery script for infra + ArgoCD resync.

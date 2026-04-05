@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euxo pipefail
+
+swapoff -a
+sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
+
+cat >/etc/modules-load.d/k8s.conf <<'EOM'
+overlay
+br_netfilter
+EOM
+modprobe overlay
+modprobe br_netfilter
+
+cat >/etc/sysctl.d/99-kubernetes-cri.conf <<'EOM'
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward = 1
+EOM
+sysctl --system
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y apt-transport-https ca-certificates curl gpg jq containerd conntrack socat
+
+mkdir -p /etc/containerd
+containerd config default >/etc/containerd/config.toml
+sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+systemctl enable --now containerd
+
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v${kubernetes_minor_version}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v${kubernetes_minor_version}/deb/ /' >/etc/apt/sources.list.d/kubernetes.list
+apt-get update
+apt-get install -y kubelet kubeadm kubectl
+apt-mark hold kubelet kubeadm kubectl
+
+cat >/etc/default/kubelet <<'EOM'
+KUBELET_EXTRA_ARGS=--cloud-provider=external
+EOM
+
+systemctl enable kubelet
+
+cat >/root/NEXT_STEPS.txt <<'EOM'
+Control plane base setup is complete.
+
+Next manual steps on this node:
+1. Render the kubeadm config from the repo helper and copy it here.
+2. sudo kubeadm init --config /root/kubeadm-init.yaml
+3. Install aws-cloud-controller-manager
+2. mkdir -p $HOME/.kube
+3. sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+4. sudo chown $(id -u):$(id -g) $HOME/.kube/config
+5. Install Calico
+6. Install ingress-nginx
+7. Generate and run the worker join command on both workers
+EOM

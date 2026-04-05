@@ -1,5 +1,6 @@
 terraform {
   required_version = ">= 1.5.0"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -21,12 +22,9 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
+
   default_tags {
-    tags = {
-      Project     = "Tourism-Platform"
-      Environment = "Dev"
-      ManagedBy   = "Terraform"
-    }
+    tags = local.common_tags
   }
 }

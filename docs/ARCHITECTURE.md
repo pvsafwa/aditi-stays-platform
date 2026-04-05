@@ -44,15 +44,15 @@
   - Local filesystem mode retained for local/dev usage.
 
 ## Deployment chain
-1. Terraform provisions VPC + RDS + K3s EC2 nodes.
+1. Terraform provisions VPC + RDS + Redis + S3 + EC2 nodes for a kubeadm-based Kubernetes cluster.
 2. GitHub Actions builds images and pushes to ECR.
 3. Workflow updates K8s manifests with image tags.
-4. ArgoCD detects git changes and syncs to K3s.
+4. ArgoCD detects git changes and syncs to the cluster.
 
 ## Disaster recovery design
 - One-command infrastructure + app sync (`scripts/recover.sh`).
 - Recovery objective under 6 minutes depends on:
-  - Prebuilt AMIs for k3s nodes.
+  - Prebuilt Ubuntu node baseline via Terraform user data.
   - Cached container layers in ECR.
   - Pre-provisioned IAM and DNS zones.
 

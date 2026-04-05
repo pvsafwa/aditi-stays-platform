@@ -4,8 +4,9 @@ metadata:
   name: aditi-stays-ingress
   namespace: aditi-stays
   annotations:
-    kubernetes.io/ingress.class: traefik
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
 spec:
+  ingressClassName: nginx
   rules:
     - host: aditistays.com
       http:

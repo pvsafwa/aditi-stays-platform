@@ -7,7 +7,7 @@ Enterprise CRM + catalog platform for a halal-compliant, human-assisted travel a
 - Core API: Golang
 - Chat Service: FastAPI + WebSockets
 - Data: PostgreSQL + Redis
-- Infra: Terraform + K3s manifests + GitHub Actions + ArgoCD skeleton
+- Infra: Terraform + kubeadm-based Kubernetes on AWS EC2 + GitHub Actions + ArgoCD skeleton
 
 ## Local quick start
 1. Copy env templates.
