@@ -8,14 +8,25 @@ async function parse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-function adminHeaders(token: string, actor = "admin-ops") {
-  if (!token) {
-    throw new Error("Admin token is required");
+export type AdminSessionData = {
+  email: string;
+  actor: string;
+  role: string;
+  expires_at: string;
+};
+
+async function adminFetch(input: string, init: RequestInit = {}, actor = "admin-ops") {
+  const headers = new Headers(init.headers || {});
+  const actorHeader = actor.trim();
+  if (actorHeader) {
+    headers.set("X-Admin-Actor", actorHeader);
   }
-  return {
-    Authorization: `Bearer ${token}`,
-    "X-Admin-Actor": actor,
-  };
+
+  return fetch(input, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
 }
 
 export async function getProperties() {
@@ -105,12 +116,12 @@ export async function getWishlist(visitorId: string) {
   return parse<{ data: any[] }>(await fetch(`${CORE_API_URL}/api/wishlist/${visitorId}`, { cache: "no-store" }));
 }
 
-export async function compareProperties(propertyIds: string[]) {
+export async function compareProperties(propertyIds: string[], visitorId?: string) {
   return parse<{ data: any[] }>(
     await fetch(`${CORE_API_URL}/api/comparisons`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ property_ids: propertyIds }),
+      body: JSON.stringify({ property_ids: propertyIds, visitor_id: visitorId }),
     })
   );
 }
@@ -186,74 +197,100 @@ export async function uploadProof(
   file: File,
   opts?: {
     chatToken?: string;
-    adminToken?: string;
+    adminActor?: string;
   }
 ) {
   const form = new FormData();
   form.append("file", file);
 
   const headers: Record<string, string> = {};
-  if (opts?.adminToken) {
-    headers.Authorization = `Bearer ${opts.adminToken}`;
-  } else if (opts?.chatToken) {
+  const isAdminUpload = Boolean(opts?.adminActor);
+  if (opts?.chatToken) {
     headers["X-Chat-Token"] = opts.chatToken;
+  } else if (opts?.adminActor) {
+    headers["X-Admin-Actor"] = opts.adminActor;
   }
 
   return parse<{ ok: boolean; data: any }>(
     await fetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/upload-proof`, {
       method: "POST",
       headers,
+      credentials: isAdminUpload ? "include" : "same-origin",
       body: form,
     })
   );
 }
 
-export async function getActiveLeads(adminToken: string, actor = "admin-ops") {
-  return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/leads/active`, {
-      cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
+export async function loginAdmin(email: string, password: string) {
+  return parse<{ data: AdminSessionData }>(
+    await fetch(`${CORE_API_URL}/api/admin/session/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
     })
   );
 }
 
-export async function getAllLeads(adminToken: string, actor = "admin-ops", limit = 200) {
-  return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/leads/all?limit=${encodeURIComponent(String(limit))}`, {
+export async function getAdminSession() {
+  return parse<{ data: AdminSessionData }>(
+    await fetch(`${CORE_API_URL}/api/admin/session`, {
       cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
+      credentials: "include",
     })
   );
 }
 
-export async function getLeadContext(leadId: number, adminToken: string, actor = "admin-ops") {
-  return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/leads/${leadId}/context`, {
-      cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
-    })
-  );
-}
-
-export async function getLeadMessages(leadId: number, adminToken: string, actor = "admin-ops") {
-  return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/leads/${leadId}/messages`, {
-      cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
-    })
-  );
-}
-
-export async function updateInventory(leadId: number, available: boolean, note: string, adminToken: string, actor = "admin-ops") {
+export async function logoutAdmin() {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/admin/leads/${leadId}/inventory-check`, {
+    await fetch(`${CORE_API_URL}/api/admin/session/logout`, {
+      method: "POST",
+      credentials: "include",
+    })
+  );
+}
+
+export async function getActiveLeads(actor = "admin-ops") {
+  return parse<{ data: any[] }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/active`, {
+      cache: "no-store",
+    }, actor)
+  );
+}
+
+export async function getAllLeads(actor = "admin-ops", limit = 200) {
+  return parse<{ data: any[] }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/all?limit=${encodeURIComponent(String(limit))}`, {
+      cache: "no-store",
+    }, actor)
+  );
+}
+
+export async function getLeadContext(leadId: number, actor = "admin-ops") {
+  return parse<{ data: any }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/${leadId}/context`, {
+      cache: "no-store",
+    }, actor)
+  );
+}
+
+export async function getLeadMessages(leadId: number, actor = "admin-ops") {
+  return parse<{ data: any[] }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/${leadId}/messages`, {
+      cache: "no-store",
+    }, actor)
+  );
+}
+
+export async function updateInventory(leadId: number, available: boolean, note: string, actor = "admin-ops") {
+  return parse<{ ok: boolean }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/${leadId}/inventory-check`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify({ available, note }),
-    })
+    }, actor)
   );
 }
 
@@ -261,50 +298,84 @@ export async function addPayment(
   leadId: number,
   amount: number,
   paymentType: "ADVANCE" | "FULL",
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/leads/${leadId}/payment`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/${leadId}/payment`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify({ amount, payment_type: paymentType }),
-    })
+    }, actor)
   );
 }
 
-export async function dailyAnalytics(adminToken: string, date?: string, actor = "admin-ops") {
+export async function deletePayment(leadId: number, paymentId: number, actor = "admin-ops") {
+  return parse<{ ok: boolean; data: any; lead_status: string }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/leads/${leadId}/payment/${paymentId}`, {
+      method: "DELETE",
+    }, actor)
+  );
+}
+
+export async function listPayments(actor = "admin-ops", limit = 200) {
+  return parse<{ data: any[] }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/payments?limit=${encodeURIComponent(String(limit))}`, {
+      cache: "no-store",
+    }, actor)
+  );
+}
+
+export async function getGpaySettings(actor = "admin-ops") {
+  return parse<{ data: { qr_url?: string; mobile_number?: string } }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/settings/gpay`, {
+      cache: "no-store",
+    }, actor)
+  );
+}
+
+export async function updateGpaySettings(
+  payload: { qr_url: string; mobile_number: string },
+  actor = "admin-ops"
+) {
+  return parse<{ ok: boolean; data: { qr_url?: string; mobile_number?: string } }>(
+    await adminFetch(`${CORE_API_URL}/api/admin/settings/gpay`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }, actor)
+  );
+}
+
+export async function dailyAnalytics(date?: string, actor = "admin-ops") {
   const q = date ? `?date=${date}` : "";
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/analytics/daily${q}`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/analytics/daily${q}`, {
       cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
-    })
+    }, actor)
   );
 }
 
-export async function summaryAnalytics(adminToken: string, actor = "admin-ops") {
+export async function summaryAnalytics(actor = "admin-ops") {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/analytics/summary`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/analytics/summary`, {
       cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
-    })
+    }, actor)
   );
 }
 
-export async function shareGpay(leadId: number, qrUrl: string, mobileNumber: string, adminToken: string, actor = "admin-ops") {
+export async function shareGpay(leadId: number, qrUrl: string, mobileNumber: string, actor = "admin-ops") {
   return parse<{ ok: boolean }>(
-    await fetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/share-gpay`, {
+    await adminFetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/share-gpay`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify({ qr_url: qrUrl, mobile_number: mobileNumber, sender_label: "Aditi Stays" }),
-    })
+    }, actor)
   );
 }
 
@@ -312,62 +383,55 @@ export async function confirmLeadViaChat(
   leadId: number,
   details: string,
   whatsappNumber: string | undefined,
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ ok: boolean; whatsapp_sent: boolean }>(
-    await fetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/confirm`, {
+    await adminFetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/confirm`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify({ details, whatsapp_number: whatsappNumber, sender_label: "Aditi Stays" }),
-    })
+    }, actor)
   );
 }
 
 export async function sendAdminStatusMessage(
   leadId: number,
   text: string,
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ ok: boolean; data: any }>(
-    await fetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/status`, {
+    await adminFetch(`${CHAT_HTTP_URL}/api/chat/${leadId}/status`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify({ sender_label: "Aditi Stays", text }),
-    })
+    }, actor)
   );
 }
 
-export async function listAdminBanners(adminToken: string, actor = "admin-ops") {
+export async function listAdminBanners(actor = "admin-ops") {
   return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/banners`, {
       cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
-    })
+    }, actor)
   );
 }
 
 export async function addAdminBanner(
   payload: { title: string; url: string; platform: string; cover_url: string; metadata?: Record<string, unknown> },
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/banners`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify(payload),
-    })
+    }, actor)
   );
 }
 
@@ -375,7 +439,6 @@ export async function uploadAdminBannerVideo(
   file: File,
   quality: string,
   bitrateKbps: number,
-  adminToken: string,
   actor = "admin-ops"
 ) {
   const form = new FormData();
@@ -387,50 +450,45 @@ export async function uploadAdminBannerVideo(
     ok: boolean;
     data: { url: string; quality: string; bitrate_kbps: number; mime_type: string; file_name: string };
   }>(
-    await fetch(`${CHAT_HTTP_URL}/api/admin/banners/upload`, {
+    await adminFetch(`${CHAT_HTTP_URL}/api/admin/banners/upload`, {
       method: "POST",
-      headers: adminHeaders(adminToken, actor),
       body: form,
-    })
+    }, actor)
   );
 }
 
-export async function uploadAdminPropertyImage(file: File, adminToken: string, actor = "admin-ops") {
+export async function uploadAdminPropertyImage(file: File, actor = "admin-ops") {
   const form = new FormData();
   form.append("file", file);
   return parse<{ ok: boolean; data: { url: string; mime_type: string; file_name: string } }>(
-    await fetch(`${CHAT_HTTP_URL}/api/admin/properties/upload-image`, {
+    await adminFetch(`${CHAT_HTTP_URL}/api/admin/properties/upload-image`, {
       method: "POST",
-      headers: adminHeaders(adminToken, actor),
       body: form,
-    })
+    }, actor)
   );
 }
 
-export async function deleteAdminBanner(bannerId: number, adminToken: string, actor = "admin-ops") {
+export async function deleteAdminBanner(bannerId: number, actor = "admin-ops") {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners/${bannerId}`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/banners/${bannerId}`, {
       method: "DELETE",
-      headers: adminHeaders(adminToken, actor),
-    })
+    }, actor)
   );
 }
 
 export async function updateAdminBanner(
   bannerId: number,
   payload: { title: string; url: string; platform: string; cover_url: string; metadata?: Record<string, unknown> },
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners/${bannerId}`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/banners/${bannerId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify(payload),
-    })
+    }, actor)
   );
 }
 
@@ -445,27 +503,24 @@ export async function addAdminProperty(
     media: string[];
     description: string;
   },
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/properties`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify(payload),
-    })
+    }, actor)
   );
 }
 
-export async function listAdminProperties(adminToken: string, actor = "admin-ops") {
+export async function listAdminProperties(actor = "admin-ops") {
   return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/properties`, {
       cache: "no-store",
-      headers: adminHeaders(adminToken, actor),
-    })
+    }, actor)
   );
 }
 
@@ -480,26 +535,23 @@ export async function updateAdminProperty(
     media: string[];
     description: string;
   },
-  adminToken: string,
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        ...adminHeaders(adminToken, actor),
       },
       body: JSON.stringify(payload),
-    })
+    }, actor)
   );
 }
 
-export async function deleteAdminProperty(propertyId: string, adminToken: string, actor = "admin-ops") {
+export async function deleteAdminProperty(propertyId: string, actor = "admin-ops") {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
+    await adminFetch(`${CORE_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
       method: "DELETE",
-      headers: adminHeaders(adminToken, actor),
-    })
+    }, actor)
   );
 }

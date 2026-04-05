@@ -252,7 +252,7 @@ export default function PropertyDetailsPage() {
       return;
     }
     try {
-      const res = await compareProperties([propertyId, compareTarget]);
+      const res = await compareProperties([propertyId, compareTarget], visitorId || undefined);
       setComparisonData(res.data as Property[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Comparison failed");
@@ -393,6 +393,9 @@ export default function PropertyDetailsPage() {
       <section className="mb-5 flex flex-wrap items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-2">
           <Link href="/" className="rounded-lg border border-border/60 px-3 py-2 text-foreground/85 hover:bg-background/70">
+            Home
+          </Link>
+          <Link href="/properties" className="rounded-lg border border-border/60 px-3 py-2 text-foreground/85 hover:bg-background/70">
             All Properties
           </Link>
           <span className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-teal-700">Property ID: {property.id}</span>

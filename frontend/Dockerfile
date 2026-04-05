@@ -5,6 +5,12 @@ RUN npm install
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+ARG NEXT_PUBLIC_CORE_API_URL=http://localhost:8080
+ARG NEXT_PUBLIC_CHAT_HTTP_URL=http://localhost:8000
+ARG NEXT_PUBLIC_CHAT_WS_URL=ws://localhost:8000
+ENV NEXT_PUBLIC_CORE_API_URL=$NEXT_PUBLIC_CORE_API_URL
+ENV NEXT_PUBLIC_CHAT_HTTP_URL=$NEXT_PUBLIC_CHAT_HTTP_URL
+ENV NEXT_PUBLIC_CHAT_WS_URL=$NEXT_PUBLIC_CHAT_WS_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -12,6 +18,12 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ARG NEXT_PUBLIC_CORE_API_URL=http://localhost:8080
+ARG NEXT_PUBLIC_CHAT_HTTP_URL=http://localhost:8000
+ARG NEXT_PUBLIC_CHAT_WS_URL=ws://localhost:8000
+ENV NEXT_PUBLIC_CORE_API_URL=$NEXT_PUBLIC_CORE_API_URL
+ENV NEXT_PUBLIC_CHAT_HTTP_URL=$NEXT_PUBLIC_CHAT_HTTP_URL
+ENV NEXT_PUBLIC_CHAT_WS_URL=$NEXT_PUBLIC_CHAT_WS_URL
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public

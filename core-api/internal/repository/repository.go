@@ -452,6 +452,182 @@ func (r *Repository) GetPropertiesByIDs(ctx context.Context, ids []string) ([]mo
 	return result, rows.Err()
 }
 
+func (r *Repository) RecordComparison(ctx context.Context, visitorID string, propertyIDs []string) error {
+	visitorID = strings.TrimSpace(visitorID)
+	if visitorID == "" || len(propertyIDs) < 2 {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	clean := make([]string, 0, len(propertyIDs))
+	for _, propertyID := range propertyIDs {
+		trimmed := strings.TrimSpace(propertyID)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		clean = append(clean, trimmed)
+	}
+	if len(clean) < 2 {
+		return nil
+	}
+
+	for i, propertyID := range clean {
+		for j, comparedWith := range clean {
+			if i == j {
+				continue
+			}
+			if _, err := r.db.Exec(ctx, `
+				INSERT INTO comparison_history(visitor_id, property_id, compared_with_property_id)
+				VALUES ($1, $2, $3)
+			`, visitorID, propertyID, comparedWith); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Repository) GetComparedProperties(ctx context.Context, visitorID string, limit int) ([]models.Property, error) {
+	visitorID = strings.TrimSpace(visitorID)
+	if visitorID == "" {
+		return []models.Property{}, nil
+	}
+	if limit <= 0 {
+		limit = 12
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			p.id,
+			p.public_title,
+			p.location,
+			p.nightly_price,
+			p.family_friendly,
+			p.amenities,
+			p.hero_image,
+			p.media,
+			p.description,
+			p.created_at
+		FROM (
+			SELECT property_id, MAX(created_at) AS last_compared_at
+			FROM comparison_history
+			WHERE visitor_id=$1
+			GROUP BY property_id
+			ORDER BY MAX(created_at) DESC
+			LIMIT $2
+		) recent
+		JOIN properties p ON p.id = recent.property_id
+		ORDER BY recent.last_compared_at DESC
+	`, visitorID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]models.Property, 0, limit)
+	for rows.Next() {
+		var p models.Property
+		var amenitiesBytes []byte
+		var mediaBytes []byte
+		if err := rows.Scan(&p.ID, &p.PublicTitle, &p.Location, &p.NightlyPrice, &p.FamilyFriendly, &amenitiesBytes, &p.HeroImage, &mediaBytes, &p.Description, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(amenitiesBytes, &p.Amenities); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(mediaBytes, &p.Media); err != nil {
+			return nil, err
+		}
+		items = append(items, p)
+	}
+	return items, rows.Err()
+}
+
+func (r *Repository) GetTripRequirement(ctx context.Context, leadID int64) (map[string]any, error) {
+	var content string
+	var metadataBytes []byte
+	var createdAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT content, metadata, created_at
+		FROM chat_messages
+		WHERE lead_id=$1 AND message_type='TRIP_REQUIREMENT'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, leadID).Scan(&content, &metadataBytes, &createdAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	out := map[string]any{
+		"content":    content,
+		"created_at": createdAt,
+	}
+	if len(metadataBytes) > 0 {
+		var metadata map[string]any
+		if err := json.Unmarshal(metadataBytes, &metadata); err == nil {
+			for _, key := range []string{"property_id", "from_date", "to_date", "members"} {
+				if value, ok := metadata[key]; ok {
+					out[key] = value
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+func (r *Repository) GetPlatformSetting(ctx context.Context, key string) (map[string]any, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return map[string]any{}, nil
+	}
+
+	var valueBytes []byte
+	err := r.db.QueryRow(ctx, `
+		SELECT value
+		FROM platform_settings
+		WHERE key=$1
+	`, key).Scan(&valueBytes)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return map[string]any{}, nil
+		}
+		return nil, err
+	}
+
+	out := map[string]any{}
+	if len(valueBytes) > 0 {
+		if err := json.Unmarshal(valueBytes, &out); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (r *Repository) UpsertPlatformSetting(ctx context.Context, key string, value map[string]any) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return fmt.Errorf("setting key is required")
+	}
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(ctx, `
+		INSERT INTO platform_settings(key, value, updated_at)
+		VALUES ($1, $2::jsonb, NOW())
+		ON CONFLICT(key)
+		DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
+	`, key, string(payload))
+	return err
+}
+
 func normalizeCatalogToken(input string) string {
 	var b strings.Builder
 	for _, r := range input {
@@ -720,6 +896,22 @@ func (r *Repository) EnsureSchema(ctx context.Context) error {
 				OR coalesce(metadata->>'mime_type', '') LIKE 'video/%'
 				OR url ~* '\\.(mp4|webm|mov|m4v|ogv)(\\?.*)?$'
 			  )
+		);
+		CREATE TABLE IF NOT EXISTS comparison_history (
+			id BIGSERIAL PRIMARY KEY,
+			visitor_id TEXT NOT NULL,
+			property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+			compared_with_property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_comparison_history_visitor_created
+			ON comparison_history(visitor_id, created_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_comparison_history_property
+			ON comparison_history(property_id, created_at DESC);
+		CREATE TABLE IF NOT EXISTS platform_settings (
+			key TEXT PRIMARY KEY,
+			value JSONB NOT NULL DEFAULT '{}'::jsonb,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 	`)
 	if err != nil {
@@ -1200,6 +1392,124 @@ func (r *Repository) AddPayment(ctx context.Context, leadID int64, amount float6
 	return &p, nil
 }
 
+func (r *Repository) DeletePayment(ctx context.Context, leadID, paymentID int64) (*models.Payment, string, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var deleted models.Payment
+	err = tx.QueryRow(ctx, `
+		DELETE FROM payments
+		WHERE id=$1 AND lead_id=$2
+		RETURNING id, lead_id, amount, payment_type, source, created_at
+	`, paymentID, leadID).Scan(
+		&deleted.ID,
+		&deleted.LeadID,
+		&deleted.Amount,
+		&deleted.PaymentType,
+		&deleted.Source,
+		&deleted.CreatedAt,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var inventoryChecked bool
+	var currentStatus string
+	if err := tx.QueryRow(ctx, `SELECT inventory_checked, status FROM leads WHERE id=$1`, leadID).Scan(&inventoryChecked, &currentStatus); err != nil {
+		return nil, "", err
+	}
+
+	var advanceCount int64
+	var fullCount int64
+	if err := tx.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN payment_type='ADVANCE' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN payment_type='FULL' THEN 1 ELSE 0 END), 0)
+		FROM payments
+		WHERE lead_id=$1
+	`, leadID).Scan(&advanceCount, &fullCount); err != nil {
+		return nil, "", err
+	}
+
+	nextStatus := "NEW_INQUIRY"
+	switch {
+	case fullCount > 0:
+		nextStatus = "CONFIRMED"
+	case advanceCount > 0:
+		nextStatus = "PAYMENT_PENDING"
+	case strings.EqualFold(currentStatus, "UNAVAILABLE"):
+		nextStatus = "UNAVAILABLE"
+	case inventoryChecked:
+		nextStatus = "AVAILABLE"
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE leads SET status=$2, updated_at=NOW() WHERE id=$1`, leadID, nextStatus); err != nil {
+		return nil, "", err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, "", err
+	}
+	return &deleted, nextStatus, nil
+}
+
+func (r *Repository) ListPayments(ctx context.Context, limit int) ([]map[string]any, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			p.id,
+			p.lead_id,
+			l.customer_name,
+			l.property_id,
+			p.amount,
+			p.payment_type,
+			p.source,
+			p.created_at
+		FROM payments p
+		JOIN leads l ON l.id = p.lead_id
+		ORDER BY p.created_at DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]map[string]any, 0, limit)
+	for rows.Next() {
+		var paymentID int64
+		var leadID int64
+		var customerName string
+		var propertyID string
+		var amount float64
+		var paymentType string
+		var source string
+		var createdAt time.Time
+		if err := rows.Scan(&paymentID, &leadID, &customerName, &propertyID, &amount, &paymentType, &source, &createdAt); err != nil {
+			return nil, err
+		}
+		items = append(items, map[string]any{
+			"id":            paymentID,
+			"lead_id":       leadID,
+			"customer_name": customerName,
+			"property_id":   propertyID,
+			"amount":        amount,
+			"payment_type":  paymentType,
+			"source":        source,
+			"created_at":    createdAt,
+		})
+	}
+	return items, rows.Err()
+}
+
 func (r *Repository) ConfirmLead(ctx context.Context, leadID int64, details string) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE leads
@@ -1294,6 +1604,14 @@ func (r *Repository) LeadContext(ctx context.Context, leadID int64) (map[string]
 	if err != nil {
 		return nil, err
 	}
+	comparedProperties, err := r.GetComparedProperties(ctx, lead.VisitorID, 12)
+	if err != nil {
+		return nil, err
+	}
+	tripRequest, err := r.GetTripRequirement(ctx, leadID)
+	if err != nil {
+		return nil, err
+	}
 
 	var advanceSum float64
 	var fullSum float64
@@ -1344,9 +1662,11 @@ func (r *Repository) LeadContext(ctx context.Context, leadID int64) (map[string]
 	}
 
 	return map[string]any{
-		"lead":             lead,
-		"browsing_history": history,
-		"wishlist":         wishlist,
+		"lead":                lead,
+		"trip_request":        tripRequest,
+		"browsing_history":    history,
+		"wishlist":            wishlist,
+		"compared_properties": comparedProperties,
 		"payment_summary": map[string]any{
 			"advance_total": advanceSum,
 			"full_total":    fullSum,

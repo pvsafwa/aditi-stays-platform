@@ -4,11 +4,13 @@ function trimEnv(value: string | undefined): string {
 
 function browserOrigin(): string {
   if (typeof window === "undefined") return "";
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") return "";
   return window.location.origin;
 }
 
 function browserWsOrigin(): string {
   if (typeof window === "undefined") return "";
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") return "";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}`;
 }

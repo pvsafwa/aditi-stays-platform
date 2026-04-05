@@ -7,20 +7,25 @@ import (
 	"strings"
 	"time"
 
+	"aditi-stays/core-api/internal/auth"
+	"aditi-stays/core-api/internal/config"
 	"aditi-stays/core-api/internal/middleware"
 	"aditi-stays/core-api/internal/models"
 	"aditi-stays/core-api/internal/repository"
 	"aditi-stays/core-api/internal/service"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Handler struct {
-	svc  *service.Service
-	repo *repository.Repository
+	svc            *service.Service
+	repo           *repository.Repository
+	cfg            *config.Config
+	sessionManager *auth.Manager
 }
 
-func New(svc *service.Service, repo *repository.Repository) *Handler {
-	return &Handler{svc: svc, repo: repo}
+func New(svc *service.Service, repo *repository.Repository, cfg *config.Config, sessionManager *auth.Manager) *Handler {
+	return &Handler{svc: svc, repo: repo, cfg: cfg, sessionManager: sessionManager}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.Engine, adminAuth gin.HandlerFunc, leadLimiter gin.HandlerFunc) {
@@ -45,6 +50,13 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, adminAuth gin.HandlerFunc, leadL
 
 	api.POST("/leads/check-availability", leadLimiter, h.checkAvailability)
 
+	api.POST("/admin/session/login", h.loginAdmin)
+
+	session := api.Group("/admin/session")
+	session.Use(adminAuth)
+	session.GET("", h.getAdminSession)
+	session.POST("/logout", h.logoutAdmin)
+
 	admin := api.Group("/admin")
 	admin.Use(adminAuth)
 	admin.GET("/leads/active", h.listActiveLeads)
@@ -54,7 +66,11 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, adminAuth gin.HandlerFunc, leadL
 	admin.GET("/leads/:leadId/messages", h.getLeadMessages)
 	admin.POST("/leads/:leadId/inventory-check", h.updateInventory)
 	admin.POST("/leads/:leadId/payment", h.addPayment)
+	admin.DELETE("/leads/:leadId/payment/:paymentId", h.deletePayment)
 	admin.POST("/leads/:leadId/confirm", h.confirmLead)
+	admin.GET("/payments", h.listPayments)
+	admin.GET("/settings/gpay", h.getGpaySettings)
+	admin.PUT("/settings/gpay", h.updateGpaySettings)
 	admin.GET("/analytics/daily", h.dailyAnalytics)
 	admin.GET("/analytics/summary", h.summaryAnalytics)
 	admin.GET("/banners", h.listBannersAdmin)
@@ -69,6 +85,109 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, adminAuth gin.HandlerFunc, leadL
 
 func (h *Handler) health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) loginAdmin(c *gin.Context) {
+	var in struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	password := in.Password
+	if email == "" || password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email and password are required"})
+		return
+	}
+	if email != strings.ToLower(h.cfg.AdminLoginEmail) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(h.cfg.AdminLoginPasswordHash), []byte(password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+	token, claims, err := h.sessionManager.IssueAdminSession(email, h.cfg.AdminLoginDisplayName, time.Duration(h.cfg.AdminSessionTTLHours)*time.Hour)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create admin session"})
+		return
+	}
+
+	http.SetCookie(c.Writer, h.adminSessionCookie(token, claims.ExpiresAt))
+	c.JSON(http.StatusOK, gin.H{"data": h.sessionResponse(claims)})
+}
+
+func (h *Handler) getAdminSession(c *gin.Context) {
+	email, _ := c.Get(middleware.ContextAdminEmail)
+	actor, _ := c.Get(middleware.ContextAdminActor)
+	role, _ := c.Get(middleware.ContextAdminRole)
+
+	sessionToken, err := c.Cookie(h.cfg.AdminSessionCookieName)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin authentication required"})
+		return
+	}
+	claims, err := h.sessionManager.Verify(sessionToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin session is invalid"})
+		return
+	}
+
+	if s, ok := email.(string); ok && s != "" {
+		claims.Email = s
+	}
+	if s, ok := actor.(string); ok && s != "" {
+		claims.Actor = s
+	}
+	if s, ok := role.(string); ok && s != "" {
+		claims.Role = s
+	}
+	c.JSON(http.StatusOK, gin.H{"data": h.sessionResponse(claims)})
+}
+
+func (h *Handler) logoutAdmin(c *gin.Context) {
+	http.SetCookie(c.Writer, h.expiredAdminSessionCookie())
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) sessionResponse(claims *auth.Claims) gin.H {
+	return gin.H{
+		"email":      claims.Email,
+		"actor":      claims.Actor,
+		"role":       claims.Role,
+		"expires_at": time.Unix(claims.ExpiresAt, 0).UTC().Format(time.RFC3339),
+	}
+}
+
+func (h *Handler) adminSessionCookie(token string, expiresAt int64) *http.Cookie {
+	return &http.Cookie{
+		Name:     h.cfg.AdminSessionCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cfg.AdminSessionSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Unix(expiresAt, 0).UTC(),
+		MaxAge:   int(time.Until(time.Unix(expiresAt, 0).UTC()).Seconds()),
+	}
+}
+
+func (h *Handler) expiredAdminSessionCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     h.cfg.AdminSessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cfg.AdminSessionSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Unix(0, 0).UTC(),
+		MaxAge:   -1,
+	}
 }
 
 func (h *Handler) listProperties(c *gin.Context) {
@@ -439,12 +558,13 @@ func (h *Handler) getWishlist(c *gin.Context) {
 func (h *Handler) compareProperties(c *gin.Context) {
 	var in struct {
 		PropertyIDs []string `json:"property_ids"`
+		VisitorID   string   `json:"visitor_id"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	props, err := h.svc.CompareProperties(c.Request.Context(), in.PropertyIDs)
+	props, err := h.svc.CompareProperties(c.Request.Context(), in.PropertyIDs, in.VisitorID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -601,6 +721,81 @@ func (h *Handler) addPayment(c *gin.Context) {
 	}
 	h.auditAdminAction(c, "add_payment", "lead", strconv.FormatInt(leadID, 10), map[string]any{"amount": in.Amount, "payment_type": in.PaymentType})
 	c.JSON(http.StatusCreated, gin.H{"data": payment})
+}
+
+func (h *Handler) deletePayment(c *gin.Context) {
+	leadID, err := strconv.ParseInt(c.Param("leadId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid lead id"})
+		return
+	}
+	paymentID, err := strconv.ParseInt(c.Param("paymentId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payment id"})
+		return
+	}
+	payment, nextStatus, err := h.svc.DeletePayment(c.Request.Context(), leadID, paymentID)
+	if err != nil {
+		status := http.StatusBadRequest
+		if repository.IsNotFound(err) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	h.auditAdminAction(c, "delete_payment", "lead", strconv.FormatInt(leadID, 10), map[string]any{
+		"payment_id":   paymentID,
+		"amount":       payment.Amount,
+		"payment_type": payment.PaymentType,
+		"next_status":  nextStatus,
+	})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": payment, "lead_status": nextStatus})
+}
+
+func (h *Handler) listPayments(c *gin.Context) {
+	limitRaw := c.DefaultQuery("limit", "200")
+	limit, err := strconv.Atoi(limitRaw)
+	if err != nil {
+		limit = 200
+	}
+	items, err := h.repo.ListPayments(c.Request.Context(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	h.auditAdminAction(c, "list_payments", "payment", "*", map[string]any{"count": len(items)})
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (h *Handler) getGpaySettings(c *gin.Context) {
+	settings, err := h.repo.GetPlatformSetting(c.Request.Context(), "gpay")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	h.auditAdminAction(c, "view_gpay_settings", "settings", "gpay", nil)
+	c.JSON(http.StatusOK, gin.H{"data": settings})
+}
+
+func (h *Handler) updateGpaySettings(c *gin.Context) {
+	var in struct {
+		QRURL        string `json:"qr_url"`
+		MobileNumber string `json:"mobile_number"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	payload := map[string]any{
+		"qr_url":        strings.TrimSpace(in.QRURL),
+		"mobile_number": strings.TrimSpace(in.MobileNumber),
+	}
+	if err := h.repo.UpsertPlatformSetting(c.Request.Context(), "gpay", payload); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	h.auditAdminAction(c, "update_gpay_settings", "settings", "gpay", payload)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": payload})
 }
 
 func (h *Handler) confirmLead(c *gin.Context) {

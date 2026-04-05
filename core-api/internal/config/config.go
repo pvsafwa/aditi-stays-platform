@@ -15,6 +15,13 @@ type Config struct {
 	RedisDB                  int
 	ChatNotificationChannel  string
 	AdminAPIToken            string
+	AdminLoginEmail          string
+	AdminLoginPasswordHash   string
+	AdminLoginDisplayName    string
+	AdminSessionSecret       string
+	AdminSessionCookieName   string
+	AdminSessionTTLHours     int
+	AdminSessionSecure       bool
 	UserChatTokenSecret      string
 	GlobalRateLimitPerMinute int
 	LeadRateLimitPerMinute   int
@@ -40,6 +47,28 @@ func Load() (*Config, error) {
 	if err := requireStrongSecret("ADMIN_API_TOKEN", adminToken); err != nil {
 		return nil, err
 	}
+	adminLoginEmail := strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_LOGIN_EMAIL")))
+	if adminLoginEmail == "" {
+		return nil, fmt.Errorf("ADMIN_LOGIN_EMAIL is required")
+	}
+	adminLoginPasswordHash := strings.TrimSpace(os.Getenv("ADMIN_LOGIN_PASSWORD_HASH"))
+	if adminLoginPasswordHash == "" {
+		return nil, fmt.Errorf("ADMIN_LOGIN_PASSWORD_HASH is required")
+	}
+	adminLoginDisplayName := strings.TrimSpace(getEnv("ADMIN_LOGIN_DISPLAY_NAME", "admin-ops"))
+	adminSessionSecret := strings.TrimSpace(os.Getenv("ADMIN_SESSION_SECRET"))
+	if err := requireStrongSecret("ADMIN_SESSION_SECRET", adminSessionSecret); err != nil {
+		return nil, err
+	}
+	adminSessionCookieName := strings.TrimSpace(getEnv("ADMIN_SESSION_COOKIE_NAME", "aditi_admin_session"))
+	if adminSessionCookieName == "" {
+		return nil, fmt.Errorf("ADMIN_SESSION_COOKIE_NAME is required")
+	}
+	adminSessionTTLHours, err := getEnvIntMin("ADMIN_SESSION_TTL_HOURS", 12, 1)
+	if err != nil {
+		return nil, err
+	}
+	adminSessionSecure := getEnvBool("ADMIN_SESSION_SECURE", false)
 	userChatTokenSecret := strings.TrimSpace(os.Getenv("USER_CHAT_TOKEN_SECRET"))
 	if err := requireStrongSecret("USER_CHAT_TOKEN_SECRET", userChatTokenSecret); err != nil {
 		return nil, err
@@ -65,6 +94,13 @@ func Load() (*Config, error) {
 		RedisDB:                  redisDB,
 		ChatNotificationChannel:  channel,
 		AdminAPIToken:            adminToken,
+		AdminLoginEmail:          adminLoginEmail,
+		AdminLoginPasswordHash:   adminLoginPasswordHash,
+		AdminLoginDisplayName:    adminLoginDisplayName,
+		AdminSessionSecret:       adminSessionSecret,
+		AdminSessionCookieName:   adminSessionCookieName,
+		AdminSessionTTLHours:     adminSessionTTLHours,
+		AdminSessionSecure:       adminSessionSecure,
 		UserChatTokenSecret:      userChatTokenSecret,
 		GlobalRateLimitPerMinute: globalRate,
 		LeadRateLimitPerMinute:   leadRate,
@@ -103,6 +139,21 @@ func getEnvIntMin(key string, fallback int, min int) (int, error) {
 		return 0, fmt.Errorf("%s must be >= %d", key, min)
 	}
 	return v, nil
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(strings.ToLower(getEnv(key, "")))
+	if raw == "" {
+		return fallback
+	}
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
 
 func parseCSV(raw string) []string {

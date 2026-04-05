@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.core.config import get_settings
 from app.core.metrics import metrics_state
-from app.core.security import verify_admin_ws_token, verify_user_chat_token
+from app.core.security import admin_session_from_websocket, verify_admin_ws_token, verify_user_chat_token
 from app.db.database import get_redis
 from app.models.schemas import ChatInput
 from app.services.chat_manager import chat_manager
@@ -20,7 +20,10 @@ async def chat_socket(websocket: WebSocket, lead_id: int):
     token = websocket.query_params.get("token")
 
     if role == "admin":
-        if not verify_admin_ws_token(token):
+        session = admin_session_from_websocket(websocket)
+        if session is not None:
+            actor = session.actor
+        elif not verify_admin_ws_token(token):
             await websocket.close(code=1008)
             return
     else:
@@ -67,7 +70,7 @@ async def chat_socket(websocket: WebSocket, lead_id: int):
 async def admin_notifications(websocket: WebSocket):
     settings = get_settings()
     token = websocket.query_params.get("token")
-    if not verify_admin_ws_token(token):
+    if admin_session_from_websocket(websocket) is None and not verify_admin_ws_token(token):
         await websocket.close(code=1008)
         return
 

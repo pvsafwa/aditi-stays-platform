@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Minimize2, X } from "lucide-react";
 import ChatWindow from "@/components/ChatWindow";
 import {
   addAdminBanner,
@@ -10,14 +11,22 @@ import {
   dailyAnalytics,
   deleteAdminBanner,
   deleteAdminProperty,
+  deletePayment,
+  getGpaySettings,
+  getAdminSession,
   getAllLeads,
   getLeadContext,
   getLeadMessages,
   listAdminBanners,
+  listPayments,
   listAdminProperties,
+  loginAdmin,
+  logoutAdmin,
   sendAdminStatusMessage,
   shareGpay,
   summaryAnalytics,
+  type AdminSessionData,
+  updateGpaySettings,
   updateAdminProperty,
   updateAdminBanner,
   updateInventory,
@@ -25,12 +34,6 @@ import {
   uploadAdminPropertyImage,
 } from "@/lib/api";
 import { AdminProperty, Lead } from "@/types";
-
-type AdminSession = {
-  apiToken: string;
-  chatToken: string;
-  actor: string;
-};
 
 type VideoCard = {
   id: number;
@@ -46,8 +49,17 @@ type VideoCard = {
 
 type LeadContextData = {
   lead?: Lead;
+  trip_request?: {
+    content?: string;
+    property_id?: string;
+    from_date?: string;
+    to_date?: string;
+    members?: number;
+    created_at?: string;
+  } | null;
   browsing_history: Array<{ property_id: string; viewed_at: string }>;
-  wishlist: Array<{ id: string; location?: string }>;
+  wishlist: Array<{ id: string; location?: string; hero_image?: string; public_title?: string }>;
+  compared_properties: Array<{ id: string; location?: string; hero_image?: string; public_title?: string }>;
   payment_summary?: {
     advance_total?: number;
     full_total?: number;
@@ -58,6 +70,7 @@ type LeadContextData = {
     id: number;
     amount: number;
     payment_type: string;
+    source?: string;
     created_at: string;
   }>;
 };
@@ -77,7 +90,19 @@ type ChatHistoryItem = {
   sender_label?: string;
   message_type?: string;
   content?: string;
+  metadata?: Record<string, unknown>;
   created_at?: string;
+};
+
+type PaymentLedgerRow = {
+  id: number;
+  lead_id: number;
+  customer_name?: string;
+  property_id?: string;
+  amount: number;
+  payment_type: string;
+  source?: string;
+  created_at: string;
 };
 
 type PropertyFormState = {
@@ -93,7 +118,9 @@ type PropertyFormState = {
 
 type LeadSearchMode = "all" | "open" | "closed";
 type BannerSourceMode = "link" | "local_upload";
-type AdminView = "dashboard" | "properties" | "heroVideos" | "conversations" | "leadOps";
+type BannerPlacement = "hero" | "showcase";
+type AdminView = "dashboard" | "properties" | "heroVideos" | "showcaseVideos" | "leadOps" | "settings" | "chatHistory";
+type SettingsSection = "shareGpay" | "payments";
 const HERO_FALLBACK_COVER = "https://images.unsplash.com/photo-1527631746610-bca00a040d60";
 const DIRECT_VIDEO_URL_REGEX = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
 
@@ -169,6 +196,15 @@ function isDirectHeroVideo(video: VideoCard): boolean {
   return DIRECT_VIDEO_URL_REGEX.test(url);
 }
 
+function readBannerPlacement(video: VideoCard): BannerPlacement {
+  const placement = typeof video.metadata?.placement === "string" ? video.metadata.placement.trim().toLowerCase() : "";
+  return placement === "showcase" ? "showcase" : "hero";
+}
+
+function readBannerPropertyId(video: VideoCard): string {
+  return typeof video.metadata?.property_id === "string" ? video.metadata.property_id.trim() : "";
+}
+
 function formatLeadTime(value?: string): string {
   if (!value) return "No activity yet";
   const date = new Date(value);
@@ -191,6 +227,29 @@ function asMoney(value: unknown): string {
   return `₹${amount.toFixed(0)}`;
 }
 
+function collectMediaLinks(metadata?: Record<string, unknown>): string[] {
+  if (!metadata) return [];
+  const links: string[] = [];
+  const candidates = [
+    metadata.file_url,
+    metadata.qr_url,
+    metadata.media_url,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      links.push(candidate.trim());
+    }
+  }
+  if (Array.isArray(metadata.media_urls)) {
+    for (const value of metadata.media_urls) {
+      if (typeof value === "string" && value.trim()) {
+        links.push(value.trim());
+      }
+    }
+  }
+  return Array.from(new Set(links));
+}
+
 const defaultPropertyForm: PropertyFormState = {
   id: "",
   location: "",
@@ -205,17 +264,17 @@ const defaultPropertyForm: PropertyFormState = {
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [session, setSession] = useState<AdminSession | null>(null);
+  const [session, setSession] = useState<AdminSessionData | null>(null);
 
-  const [loginApiToken, setLoginApiToken] = useState("");
-  const [loginChatToken, setLoginChatToken] = useState("");
-  const [loginActor, setLoginActor] = useState("admin-ops");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<AdminView>("dashboard");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("shareGpay");
   const [context, setContext] = useState<LeadContextData | null>(null);
   const [daily, setDaily] = useState<DailySnapshot | null>(null);
   const [summary, setSummary] = useState<SummarySnapshot | null>(null);
@@ -225,17 +284,21 @@ export default function AdminPage() {
   const [gpayNumber, setGpayNumber] = useState("+91-9000000000");
   const [gpayUploadBusy, setGpayUploadBusy] = useState(false);
   const [gpayNotice, setGpayNotice] = useState<string | null>(null);
+  const [gpaySaving, setGpaySaving] = useState(false);
   const [confirmDetails, setConfirmDetails] = useState("Booking confirmed. Family check-in details will be shared shortly.");
   const [whatsapp, setWhatsapp] = useState("");
   const [inventoryNote, setInventoryNote] = useState("Rooms held after manual confirmation call.");
   const [paymentAmount, setPaymentAmount] = useState(2000);
   const [paymentType, setPaymentType] = useState<"ADVANCE" | "FULL">("ADVANCE");
+  const [paymentLeadId, setPaymentLeadId] = useState<number | "">("");
 
   const [videos, setVideos] = useState<VideoCard[]>([]);
   const [videoUrl, setVideoUrl] = useState("");
   const [bannerNotice, setBannerNotice] = useState<string | null>(null);
   const [bannerSourceMode, setBannerSourceMode] = useState<BannerSourceMode>("link");
   const [bannerVideoFile, setBannerVideoFile] = useState<File | null>(null);
+  const [bannerPlacement, setBannerPlacement] = useState<BannerPlacement>("hero");
+  const [bannerPropertyId, setBannerPropertyId] = useState("");
   const [bannerQuality, setBannerQuality] = useState("1080p");
   const [bannerBitrate, setBannerBitrate] = useState("6000");
   const [bannerModalOpen, setBannerModalOpen] = useState(false);
@@ -243,6 +306,9 @@ export default function AdminPage() {
   const [editingBannerId, setEditingBannerId] = useState<number | null>(null);
 
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
+  const [leadDeskChatVisible, setLeadDeskChatVisible] = useState(false);
+  const [leadDeskChatUnreadCount, setLeadDeskChatUnreadCount] = useState(0);
+  const [paymentLedger, setPaymentLedger] = useState<PaymentLedgerRow[]>([]);
 
   const [properties, setProperties] = useState<AdminProperty[]>([]);
   const [propertyForm, setPropertyForm] = useState<PropertyFormState>(defaultPropertyForm);
@@ -299,27 +365,19 @@ export default function AdminPage() {
 
   const paymentSummary = context?.payment_summary || {};
   const paymentRows = context?.payments || [];
+  const heroVideos = useMemo(() => videos.filter((video) => readBannerPlacement(video) === "hero"), [videos]);
+  const showcaseVideos = useMemo(() => videos.filter((video) => readBannerPlacement(video) === "showcase"), [videos]);
+  const selectedShowcaseProperty = useMemo(
+    () => properties.find((property) => property.id === bannerPropertyId.trim()) || null,
+    [properties, bannerPropertyId]
+  );
+  const bannerPlacementLabel = bannerPlacement === "showcase" ? "Showcase Video" : "Hero Video";
 
   const hydrateSavedSession = useCallback(() => {
-    const apiToken = localStorage.getItem("aditi_admin_token") || "";
-    const chatToken = localStorage.getItem("aditi_admin_chat_token") || apiToken;
-    const actor = localStorage.getItem("aditi_admin_actor") || "admin-ops";
-
-    setLoginApiToken(apiToken);
-    setLoginChatToken(chatToken);
-    setLoginActor(actor);
-
-    if (!apiToken) {
-      setAuthChecking(false);
-      setIsAuthenticated(false);
-      return;
-    }
-
     void (async () => {
       try {
-        const initialSession: AdminSession = { apiToken, chatToken, actor };
-        await getAllLeads(initialSession.apiToken, initialSession.actor);
-        setSession(initialSession);
+        const current = await getAdminSession();
+        setSession(current.data);
         setIsAuthenticated(true);
       } catch {
         setIsAuthenticated(false);
@@ -334,38 +392,20 @@ export default function AdminPage() {
     hydrateSavedSession();
   }, [hydrateSavedSession]);
 
-  const saveSession = (next: AdminSession) => {
-    localStorage.setItem("aditi_admin_token", next.apiToken);
-    localStorage.setItem("aditi_admin_chat_token", next.chatToken);
-    localStorage.setItem("aditi_admin_actor", next.actor);
-  };
-
-  const clearSession = () => {
-    localStorage.removeItem("aditi_admin_token");
-    localStorage.removeItem("aditi_admin_chat_token");
-    localStorage.removeItem("aditi_admin_actor");
-  };
-
   const handleLogin = async () => {
     setLoginError(null);
     setUiError(null);
-    if (!loginApiToken.trim()) {
-      setLoginError("API token is required.");
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setLoginError("Email and password are required.");
       return;
     }
 
-    const next: AdminSession = {
-      apiToken: loginApiToken.trim(),
-      chatToken: (loginChatToken || loginApiToken).trim(),
-      actor: loginActor.trim() || "admin-ops",
-    };
-
     setLoginLoading(true);
     try {
-      await getAllLeads(next.apiToken, next.actor);
-      saveSession(next);
-      setSession(next);
+      const next = await loginAdmin(loginEmail.trim(), loginPassword);
+      setSession(next.data);
       setIsAuthenticated(true);
+      setLoginPassword("");
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : "Login failed");
       setIsAuthenticated(false);
@@ -376,12 +416,13 @@ export default function AdminPage() {
   };
 
   const handleLogout = () => {
-    clearSession();
+    void logoutAdmin().catch(() => undefined);
     setSession(null);
     setIsAuthenticated(false);
     setLeads([]);
     setSelectedLeadId(null);
     setActiveView("dashboard");
+    setSettingsSection("shareGpay");
     setContext(null);
     setDaily(null);
     setSummary(null);
@@ -394,13 +435,19 @@ export default function AdminPage() {
     setBannerModalOpen(false);
     setBannerVideoFile(null);
     setEditingBannerId(null);
+    setBannerPlacement("hero");
+    setBannerPropertyId("");
     setLeadSearch("");
     setLeadFilterMode("all");
+    setLeadDeskChatVisible(false);
+    setLeadDeskChatUnreadCount(0);
+    setPaymentLeadId("");
+    setPaymentLedger([]);
   };
 
   const refreshLeads = useCallback(async () => {
     if (!session) return;
-    const next = await getAllLeads(session.apiToken, session.actor, 300);
+    const next = await getAllLeads(session.actor, 300);
     const list = next.data as Lead[];
     setLeads(list);
 
@@ -413,30 +460,40 @@ export default function AdminPage() {
 
   const refreshAnalytics = useCallback(async () => {
     if (!session) return;
-    const [d, s] = await Promise.all([
-      dailyAnalytics(session.apiToken, undefined, session.actor),
-      summaryAnalytics(session.apiToken, session.actor),
-    ]);
+    const [d, s] = await Promise.all([dailyAnalytics(undefined, session.actor), summaryAnalytics(session.actor)]);
     setDaily(d.data as DailySnapshot);
     setSummary(s.data as SummarySnapshot);
   }, [session]);
 
   const refreshBanners = useCallback(async () => {
     if (!session) return;
-    const res = await listAdminBanners(session.apiToken, session.actor);
+    const res = await listAdminBanners(session.actor);
     setVideos(((res.data as any[]) || []).map(normalizeVideoCard).filter(isDirectHeroVideo));
   }, [session]);
 
   const refreshProperties = useCallback(async () => {
     if (!session) return;
-    const res = await listAdminProperties(session.apiToken, session.actor);
+    const res = await listAdminProperties(session.actor);
     setProperties(((res.data as any[]) || []).map(normalizeAdminProperty));
+  }, [session]);
+
+  const refreshGpaySettings = useCallback(async () => {
+    if (!session) return;
+    const res = await getGpaySettings(session.actor);
+    setQrUrl(String(res.data?.qr_url || "").trim());
+    setGpayNumber(String(res.data?.mobile_number || "").trim());
+  }, [session]);
+
+  const refreshPaymentLedger = useCallback(async () => {
+    if (!session) return;
+    const res = await listPayments(session.actor, 250);
+    setPaymentLedger((res.data as PaymentLedgerRow[]) || []);
   }, [session]);
 
   const refreshChatHistory = useCallback(
     async (leadId: number) => {
       if (!session) return;
-      const res = await getLeadMessages(leadId, session.apiToken, session.actor);
+      const res = await getLeadMessages(leadId, session.actor);
       setChatHistory((res.data as ChatHistoryItem[]) || []);
     },
     [session]
@@ -445,7 +502,7 @@ export default function AdminPage() {
   const refreshContext = useCallback(
     async (leadId: number) => {
       if (!session) return;
-      const ctx = await getLeadContext(leadId, session.apiToken, session.actor);
+      const ctx = await getLeadContext(leadId, session.actor);
       setContext(ctx.data as LeadContextData);
       setWhatsapp((ctx.data as LeadContextData).lead?.mobile_number || "");
     },
@@ -458,7 +515,7 @@ export default function AdminPage() {
     const boot = async () => {
       try {
         setUiError(null);
-        await Promise.all([refreshLeads(), refreshAnalytics(), refreshBanners(), refreshProperties()]);
+        await Promise.all([refreshLeads(), refreshAnalytics(), refreshBanners(), refreshProperties(), refreshGpaySettings(), refreshPaymentLedger()]);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to load dashboard";
         setUiError(msg);
@@ -472,7 +529,7 @@ export default function AdminPage() {
     }, 10000);
 
     return () => clearInterval(id);
-  }, [isAuthenticated, session, refreshLeads, refreshAnalytics, refreshBanners, refreshProperties]);
+  }, [isAuthenticated, session, refreshLeads, refreshAnalytics, refreshBanners, refreshProperties, refreshGpaySettings, refreshPaymentLedger]);
 
   useEffect(() => {
     if (!selectedLeadId || !session) return;
@@ -486,6 +543,19 @@ export default function AdminPage() {
     void loadContext();
   }, [selectedLeadId, session, refreshContext, refreshChatHistory]);
 
+  useEffect(() => {
+    setLeadDeskChatVisible(false);
+    setLeadDeskChatUnreadCount(0);
+    setPaymentLeadId((current) => (current === "" && selectedLeadId ? selectedLeadId : current));
+  }, [selectedLeadId]);
+
+  useEffect(() => {
+    if (activeView !== "leadOps") {
+      setLeadDeskChatVisible(false);
+      setLeadDeskChatUnreadCount(0);
+    }
+  }, [activeView]);
+
   const withActionGuard = async (fn: () => Promise<void>) => {
     try {
       setUiError(null);
@@ -498,14 +568,13 @@ export default function AdminPage() {
   const runInventory = async (available: boolean) => {
     if (!selectedLeadId || !session) return;
     await withActionGuard(async () => {
-      await updateInventory(selectedLeadId, available, inventoryNote, session.apiToken, session.actor);
+      await updateInventory(selectedLeadId, available, inventoryNote, session.actor);
       if (available) {
-        await sendAdminStatusMessage(selectedLeadId, "Available. Please proceed with payment to block this stay.", session.apiToken, session.actor);
+        await sendAdminStatusMessage(selectedLeadId, "Available. Please proceed with payment to block this stay.", session.actor);
       } else {
         await sendAdminStatusMessage(
           selectedLeadId,
           "Not Available. Do you want to check other dates or another property?",
-          session.apiToken,
           session.actor
         );
       }
@@ -518,7 +587,7 @@ export default function AdminPage() {
   const runQuickReply = async (text: string) => {
     if (!selectedLeadId || !session) return;
     await withActionGuard(async () => {
-      await sendAdminStatusMessage(selectedLeadId, text, session.apiToken, session.actor);
+      await sendAdminStatusMessage(selectedLeadId, text, session.actor);
       await refreshLeads();
       await refreshContext(selectedLeadId);
       await refreshChatHistory(selectedLeadId);
@@ -528,18 +597,40 @@ export default function AdminPage() {
   const runShareGpay = async () => {
     if (!selectedLeadId || !session) return;
     if (!qrUrl.trim()) {
-      setUiError("Upload a GPay QR image before sharing.");
+      setUiError("Configure the GPay QR image in Settings before sharing it in chat.");
       return;
     }
     if (!gpayNumber.trim()) {
-      setUiError("Enter GPay mobile number before sharing.");
+      setUiError("Configure the GPay mobile number in Settings before sharing it in chat.");
       return;
     }
     await withActionGuard(async () => {
-      await shareGpay(selectedLeadId, qrUrl.trim(), gpayNumber.trim(), session.apiToken, session.actor);
+      await shareGpay(selectedLeadId, qrUrl.trim(), gpayNumber.trim(), session.actor);
       await refreshChatHistory(selectedLeadId);
       setGpayNotice("GPay details sent in chat");
     });
+  };
+
+  const saveGpayConfig = async () => {
+    if (!session) return;
+    setGpaySaving(true);
+    setGpayNotice(null);
+    try {
+      const res = await updateGpaySettings(
+        {
+          qr_url: qrUrl.trim(),
+          mobile_number: gpayNumber.trim(),
+        },
+        session.actor
+      );
+      setQrUrl(String(res.data?.qr_url || "").trim());
+      setGpayNumber(String(res.data?.mobile_number || "").trim());
+      setGpayNotice("GPay settings saved");
+    } catch (err) {
+      setGpayNotice(err instanceof Error ? err.message : "Failed to save GPay settings");
+    } finally {
+      setGpaySaving(false);
+    }
   };
 
   const uploadGpayQrImage = async (file: File | null) => {
@@ -547,7 +638,7 @@ export default function AdminPage() {
     setGpayUploadBusy(true);
     setGpayNotice(null);
     try {
-      const uploaded = await uploadAdminPropertyImage(file, session.apiToken, session.actor);
+      const uploaded = await uploadAdminPropertyImage(file, session.actor);
       setQrUrl(uploaded.data.url);
       setGpayNotice("GPay QR uploaded");
     } catch (err) {
@@ -562,21 +653,41 @@ export default function AdminPage() {
     setGpayNotice("GPay QR removed");
   };
 
-  const runAddPayment = async () => {
-    if (!selectedLeadId || !session) return;
+  const runAddPayment = async (leadIdOverride?: number) => {
+    const targetLeadId = leadIdOverride || selectedLeadId;
+    if (!targetLeadId || !session) return;
     await withActionGuard(async () => {
-      await addPayment(selectedLeadId, paymentAmount, paymentType, session.apiToken, session.actor);
+      await addPayment(targetLeadId, paymentAmount, paymentType, session.actor);
       await refreshLeads();
       await refreshAnalytics();
-      await refreshContext(selectedLeadId);
-      await refreshChatHistory(selectedLeadId);
+      await refreshPaymentLedger();
+      if (selectedLeadId === targetLeadId) {
+        await refreshContext(selectedLeadId);
+        await refreshChatHistory(selectedLeadId);
+      }
+    });
+  };
+
+  const runDeletePayment = async (paymentId: number, leadIdOverride?: number) => {
+    const targetLeadId = leadIdOverride || selectedLeadId;
+    if (!targetLeadId || !session) return;
+    if (!window.confirm("Remove this payment entry? This is intended for mistaken additions.")) return;
+    await withActionGuard(async () => {
+      await deletePayment(targetLeadId, paymentId, session.actor);
+      await refreshLeads();
+      await refreshAnalytics();
+      await refreshPaymentLedger();
+      if (selectedLeadId === targetLeadId) {
+        await refreshContext(selectedLeadId);
+        await refreshChatHistory(selectedLeadId);
+      }
     });
   };
 
   const runConfirm = async () => {
     if (!selectedLeadId || !session) return;
     await withActionGuard(async () => {
-      await confirmLeadViaChat(selectedLeadId, confirmDetails, whatsapp, session.apiToken, session.actor);
+      await confirmLeadViaChat(selectedLeadId, confirmDetails, whatsapp, session.actor);
       await refreshLeads();
       await refreshAnalytics();
       await refreshContext(selectedLeadId);
@@ -625,13 +736,39 @@ export default function AdminPage() {
     [selectedLeadId, session, runShareGpay, runInventory, runConfirm, runQuickReply]
   );
 
-  const resetBannerForm = () => {
+  const exportChatHistory = () => {
+    if (!selectedLead) return;
+    const payload = {
+      lead: selectedLead,
+      exported_at: new Date().toISOString(),
+      messages: chatHistory.map((message) => ({
+        sender_role: message.sender_role || "",
+        sender_label: message.sender_label || "",
+        message_type: message.message_type || "TEXT",
+        content: message.content || "",
+        metadata: message.metadata || {},
+        created_at: message.created_at || "",
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `lead-${selectedLead.id}-chat-history.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const resetBannerForm = (placement: BannerPlacement = "hero") => {
     setVideoUrl("");
     setBannerVideoFile(null);
     setBannerQuality("1080p");
     setBannerBitrate("6000");
     setBannerSourceMode("link");
     setEditingBannerId(null);
+    setBannerPlacement(placement);
+    setBannerPropertyId("");
   };
 
   const startEditBanner = (video: VideoCard) => {
@@ -649,6 +786,14 @@ export default function AdminPage() {
     } else {
       setBannerBitrate("6000");
     }
+    setBannerPlacement(readBannerPlacement(video));
+    setBannerPropertyId(readBannerPropertyId(video));
+    setBannerNotice(null);
+    setBannerModalOpen(true);
+  };
+
+  const openCreateBannerModal = (placement: BannerPlacement) => {
+    resetBannerForm(placement);
     setBannerNotice(null);
     setBannerModalOpen(true);
   };
@@ -658,10 +803,20 @@ export default function AdminPage() {
     setBannerSaving(true);
     setBannerNotice(null);
     try {
+      if (bannerPlacement === "showcase" && !bannerPropertyId.trim()) {
+        setBannerNotice("Select the property this showcase video should open.");
+        return;
+      }
       let url = videoUrl.trim();
       let platform = detectPlatform(url);
-      const metadata: Record<string, unknown> = {};
-      let title = deriveHeroTitle(url, `Hero Video ${new Date().toISOString().slice(0, 16).replace("T", " ")}`);
+      const metadata: Record<string, unknown> = { placement: bannerPlacement };
+      if (bannerPlacement === "showcase") {
+        metadata.property_id = bannerPropertyId.trim();
+      }
+      let title = deriveHeroTitle(
+        url,
+        `${bannerPlacement === "showcase" ? "Showcase" : "Hero"} Video ${new Date().toISOString().slice(0, 16).replace("T", " ")}`
+      );
 
       if (bannerSourceMode === "local_upload") {
         if (!bannerVideoFile) {
@@ -673,7 +828,6 @@ export default function AdminPage() {
           bannerVideoFile,
           bannerQuality,
           Number.isFinite(bitrateValue) && bitrateValue > 0 ? bitrateValue : 6000,
-          session.apiToken,
           session.actor
         );
         url = upload.data.url;
@@ -683,7 +837,7 @@ export default function AdminPage() {
         metadata.mime_type = upload.data.mime_type;
         metadata.file_name = upload.data.file_name;
         metadata.source = "local_upload";
-        title = deriveHeroTitle(url, upload.data.file_name || "Hero Video");
+        title = deriveHeroTitle(url, upload.data.file_name || `${bannerPlacement === "showcase" ? "Showcase" : "Hero"} Video`);
       } else {
         if (!url || !/^https?:\/\//i.test(url)) {
           setBannerNotice("Enter a valid video URL with http/https");
@@ -697,24 +851,27 @@ export default function AdminPage() {
         metadata.source = "link";
       }
 
+      const selectedProperty =
+        bannerPlacement === "showcase" ? properties.find((property) => property.id === bannerPropertyId.trim()) || null : null;
+
       const payload = {
         title,
         url,
         platform,
-        cover_url: HERO_FALLBACK_COVER,
+        cover_url: selectedProperty?.hero_image || HERO_FALLBACK_COVER,
         metadata,
       };
       if (editingBannerId) {
-        await updateAdminBanner(editingBannerId, payload, session.apiToken, session.actor);
+        await updateAdminBanner(editingBannerId, payload, session.actor);
       } else {
-        await addAdminBanner(payload, session.apiToken, session.actor);
+        await addAdminBanner(payload, session.actor);
       }
       await refreshBanners();
-      resetBannerForm();
+      resetBannerForm(bannerPlacement);
       setBannerModalOpen(false);
-      setBannerNotice(editingBannerId ? "Hero video updated" : "Hero video saved");
+      setBannerNotice(editingBannerId ? `${bannerPlacementLabel} updated` : `${bannerPlacementLabel} saved`);
     } catch (err) {
-      setBannerNotice(err instanceof Error ? err.message : "Failed to save hero video");
+      setBannerNotice(err instanceof Error ? err.message : `Failed to save ${bannerPlacementLabel.toLowerCase()}`);
     } finally {
       setBannerSaving(false);
     }
@@ -722,13 +879,15 @@ export default function AdminPage() {
 
   const removeVideoBanner = (id: number) => {
     if (!session) return;
+    const target = videos.find((video) => video.id === id) || null;
+    const label = target ? (readBannerPlacement(target) === "showcase" ? "Showcase video" : "Hero video") : "Video";
     void (async () => {
       try {
-        await deleteAdminBanner(id, session.apiToken, session.actor);
+        await deleteAdminBanner(id, session.actor);
         await refreshBanners();
-        setBannerNotice("Hero video removed");
+        setBannerNotice(`${label} removed`);
       } catch (err) {
-        setBannerNotice(err instanceof Error ? err.message : "Failed to remove hero video");
+        setBannerNotice(err instanceof Error ? err.message : `Failed to remove ${label.toLowerCase()}`);
       }
     })();
   };
@@ -744,7 +903,7 @@ export default function AdminPage() {
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
-        const uploaded = await uploadAdminPropertyImage(file, session.apiToken, session.actor);
+        const uploaded = await uploadAdminPropertyImage(file, session.actor);
         urls.push(uploaded.data.url);
       }
       if (target === "hero") {
@@ -786,14 +945,13 @@ export default function AdminPage() {
       };
 
       if (editingPropertyId) {
-        await updateAdminProperty(editingPropertyId, payload, session.apiToken, session.actor);
+        await updateAdminProperty(editingPropertyId, payload, session.actor);
       } else {
         await addAdminProperty(
           {
             id: propertyForm.id.trim(),
             ...payload,
           },
-          session.apiToken,
           session.actor
         );
       }
@@ -836,7 +994,7 @@ export default function AdminPage() {
     if (!session) return;
     if (!window.confirm(`Deactivate ${propertyId}?`)) return;
     try {
-      await deleteAdminProperty(propertyId, session.apiToken, session.actor);
+      await deleteAdminProperty(propertyId, session.actor);
       if (editingPropertyId === propertyId) {
         setEditingPropertyId(null);
         setPropertyForm(defaultPropertyForm);
@@ -851,6 +1009,17 @@ export default function AdminPage() {
   const parsedMedia = parseList(propertyForm.media);
   const selectedLeadStatus = selectedLead?.status || context?.lead?.status || "NEW_INQUIRY";
   const selectedLeadProperty = selectedLead?.property_id || context?.lead?.property_id || "Property";
+  const tripRequest = context?.trip_request || null;
+  const paymentEntryLead = typeof paymentLeadId === "number" ? leads.find((lead) => lead.id === paymentLeadId) || null : null;
+  const filteredPaymentLedger =
+    typeof paymentLeadId === "number" ? paymentLedger.filter((row) => row.lead_id === paymentLeadId) : paymentLedger;
+
+  const settingsMenuButtonClass = (section: SettingsSection) =>
+    `w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+      settingsSection === section
+        ? "border-mint/70 bg-mint/12 text-foreground shadow-[0_14px_34px_-28px_rgba(83,216,196,0.8)]"
+        : "border-border/60 bg-background/55 text-foreground/85 hover:border-mint/40 hover:bg-mint/5"
+    }`;
 
   const navButtonClass = (view: AdminView) =>
     `w-full rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
@@ -858,6 +1027,87 @@ export default function AdminPage() {
         ? "border-mint/70 bg-mint/12 text-foreground shadow-[0_14px_34px_-28px_rgba(83,216,196,0.8)]"
         : "border-border/60 bg-background/55 text-foreground/85 hover:border-mint/40 hover:bg-mint/5"
     }`;
+
+  const renderLeadSelector = (title: string, subtitle: string) => (
+    <div className="flex min-h-0 flex-col rounded-2xl border border-border/60 bg-background/60 p-3 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+      <div>
+        <p className="text-[11px] uppercase tracking-[0.22em] text-mint">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+      </div>
+      <input
+        value={leadSearch}
+        onChange={(e) => setLeadSearch(e.target.value)}
+        placeholder="Search id/name/mobile/property/message"
+        className="mt-3 w-full rounded-xl border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-mint/40"
+      />
+      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+        <button
+          onClick={() => setLeadFilterMode("all")}
+          className={`rounded-full border px-3 py-1 ${
+            leadFilterMode === "all" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+          }`}
+        >
+          All ({leadCounts.all})
+        </button>
+        <button
+          onClick={() => setLeadFilterMode("open")}
+          className={`rounded-full border px-3 py-1 ${
+            leadFilterMode === "open" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+          }`}
+        >
+          Open ({leadCounts.open})
+        </button>
+        <button
+          onClick={() => setLeadFilterMode("closed")}
+          className={`rounded-full border px-3 py-1 ${
+            leadFilterMode === "closed" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+          }`}
+        >
+          Closed ({leadCounts.closed})
+        </button>
+      </div>
+      <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+        {filteredLeads.map((lead) => (
+          <button
+            key={lead.id}
+            onClick={() => setSelectedLeadId(lead.id)}
+            className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
+              selectedLeadId === lead.id
+                ? "border-mint/70 bg-mint/10 shadow-[0_12px_28px_-24px_rgba(83,216,196,0.85)]"
+                : "border-border/60 bg-card/80 hover:border-mint/40 hover:bg-mint/5"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-foreground">
+                #{lead.id} · {lead.property_id}
+              </p>
+              <span className="text-[10px] text-muted-foreground">{formatLeadTime(lead.last_message_at || lead.updated_at)}</span>
+            </div>
+            <p className="line-clamp-1 text-foreground">{lead.customer_name}</p>
+            <p className="text-xs text-muted-foreground">{lead.mobile_number}</p>
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+              {lead.last_message ? `${lead.last_sender_role || "System"}: ${lead.last_message}` : "No chat messages yet."}
+            </p>
+            <div className="mt-1">
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] ${
+                  openStatuses.has(lead.status.toUpperCase()) ? "bg-mint/15 text-mint" : "bg-background/80 text-muted-foreground"
+                }`}
+              >
+                {lead.status}
+              </span>
+            </div>
+          </button>
+        ))}
+        {selectedLeadId && !filteredLeads.some((lead) => lead.id === selectedLeadId) ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Lead #{selectedLeadId} is outside the current filter. Adjust the filter to bring it back into the list.
+          </div>
+        ) : null}
+        {filteredLeads.length === 0 ? <p className="text-xs text-muted-foreground">No leads match this filter.</p> : null}
+      </div>
+    </div>
+  );
 
   if (authChecking) {
     return (
@@ -878,23 +1128,17 @@ export default function AdminPage() {
 
           <div className="mt-4 grid gap-3">
             <input
-              type="password"
-              value={loginApiToken}
-              onChange={(e) => setLoginApiToken(e.target.value)}
-              placeholder="API bearer token"
+              type="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              placeholder="Admin email"
               className="rounded-xl border border-border/60 bg-background/75 p-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-mint/40"
             />
             <input
               type="password"
-              value={loginChatToken}
-              onChange={(e) => setLoginChatToken(e.target.value)}
-              placeholder="Chat websocket token (optional if same as API token)"
-              className="rounded-xl border border-border/60 bg-background/75 p-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-mint/40"
-            />
-            <input
-              value={loginActor}
-              onChange={(e) => setLoginActor(e.target.value)}
-              placeholder="Actor label (audit trail)"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="Password"
               className="rounded-xl border border-border/60 bg-background/75 p-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-mint/40"
             />
             <button
@@ -947,113 +1191,23 @@ export default function AdminPage() {
               <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Menu</span>
               <span className="mt-1 block">Hero Videos</span>
             </button>
-          </div>
-
-          <div className="rounded-2xl border border-border/60 bg-background/55 p-3">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Selected Lead</p>
-            {selectedLeadId ? (
-              <>
-                <p className="mt-2 text-sm font-semibold text-foreground">
-                  #{selectedLeadId} · {selectedLeadProperty}
-                </p>
-                <p className="text-xs text-muted-foreground">{selectedLead?.customer_name || context?.lead?.customer_name || "-"}</p>
-                <p className="text-xs text-muted-foreground">{selectedLead?.mobile_number || context?.lead?.mobile_number || "-"}</p>
-                <span className="mt-3 inline-flex rounded-full border border-border/60 bg-card/80 px-2.5 py-1 text-[10px] font-semibold text-foreground/80">
-                  {selectedLeadStatus}
-                </span>
-              </>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">Pick a lead from the conversation list to open chat or lead operations.</p>
-            )}
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border/60 bg-background/55 p-3">
-            <button type="button" onClick={() => setActiveView("conversations")} className={navButtonClass("conversations")}>
-              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
-              <span className="mt-1 block">Conversation Box</span>
+            <button type="button" onClick={() => setActiveView("showcaseVideos")} className={navButtonClass("showcaseVideos")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Menu</span>
+              <span className="mt-1 block">Showcase Videos</span>
             </button>
-            <p className="mt-3 text-xs text-muted-foreground">Lead chats stay here. Pick a conversation and the right panel becomes the live chat window.</p>
-            <input
-              value={leadSearch}
-              onChange={(e) => setLeadSearch(e.target.value)}
-              placeholder="Search id/name/mobile/property/message"
-              className="mt-3 w-full rounded-xl border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-mint/40"
-            />
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
-              <button
-                onClick={() => setLeadFilterMode("all")}
-                className={`rounded-full border px-3 py-1 ${
-                  leadFilterMode === "all" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
-                }`}
-              >
-                All ({leadCounts.all})
-              </button>
-              <button
-                onClick={() => setLeadFilterMode("open")}
-                className={`rounded-full border px-3 py-1 ${
-                  leadFilterMode === "open" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
-                }`}
-              >
-                Open ({leadCounts.open})
-              </button>
-              <button
-                onClick={() => setLeadFilterMode("closed")}
-                className={`rounded-full border px-3 py-1 ${
-                  leadFilterMode === "closed" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
-                }`}
-              >
-                Closed ({leadCounts.closed})
-              </button>
-            </div>
-            <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {filteredLeads.map((lead) => (
-                <button
-                  key={lead.id}
-                  onClick={() => {
-                    setSelectedLeadId(lead.id);
-                    setActiveView("conversations");
-                  }}
-                  className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
-                    selectedLeadId === lead.id
-                      ? "border-mint/70 bg-mint/10 shadow-[0_12px_28px_-24px_rgba(83,216,196,0.85)]"
-                      : "border-border/60 bg-card/80 hover:border-mint/40 hover:bg-mint/5"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-foreground">
-                      #{lead.id} · {lead.property_id}
-                    </p>
-                    <span className="text-[10px] text-muted-foreground">{formatLeadTime(lead.last_message_at || lead.updated_at)}</span>
-                  </div>
-                  <p className="line-clamp-1 text-foreground">{lead.customer_name}</p>
-                  <p className="text-xs text-muted-foreground">{lead.mobile_number}</p>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                    {lead.last_message ? `${lead.last_sender_role || "System"}: ${lead.last_message}` : "No chat messages yet."}
-                  </p>
-                  <div className="mt-1">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] ${
-                        openStatuses.has(lead.status.toUpperCase()) ? "bg-mint/15 text-mint" : "bg-background/80 text-muted-foreground"
-                      }`}
-                    >
-                      {lead.status}
-                    </span>
-                  </div>
-                </button>
-              ))}
-              {selectedLeadId && !filteredLeads.some((lead) => lead.id === selectedLeadId) ? (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Lead #{selectedLeadId} is outside current filter. Adjust filter to view it in the conversation list.
-                </div>
-              ) : null}
-              {filteredLeads.length === 0 ? <p className="text-xs text-muted-foreground">No conversations match this filter.</p> : null}
-            </div>
+            <button type="button" onClick={() => setActiveView("leadOps")} className={navButtonClass("leadOps")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
+              <span className="mt-1 block">Lead Operations</span>
+            </button>
+            <button type="button" onClick={() => setActiveView("settings")} className={navButtonClass("settings")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
+              <span className="mt-1 block">Settings</span>
+            </button>
+            <button type="button" onClick={() => setActiveView("chatHistory")} className={navButtonClass("chatHistory")}>
+              <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
+              <span className="mt-1 block">Chat History</span>
+            </button>
           </div>
-
-          <button type="button" onClick={() => setActiveView("leadOps")} className={navButtonClass("leadOps")}>
-            <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Workspace</span>
-            <span className="mt-1 block">Lead Operations</span>
-          </button>
         </aside>
 
         <section className="min-h-[calc(100vh-150px)] rounded-[28px] border border-border/60 bg-card/76 p-4 shadow-[0_24px_54px_-42px_rgba(8,31,45,0.76)] backdrop-blur-xl md:p-5">
@@ -1102,10 +1256,11 @@ export default function AdminPage() {
                 <div className="rounded-2xl border border-border/60 bg-background/60 p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Working Context</p>
                   <div className="mt-3 space-y-3 text-sm text-muted-foreground">
-                    <p>This admin portal now keeps navigation fixed on the left so operations feel more like a CRM workspace.</p>
+                    <p>This CRM is now organized around one global left menu and a separate lead workspace when you need to act on a customer.</p>
                     <p>
-                      Use <span className="font-semibold text-foreground">Conversation Box</span> for live chat, and
-                      <span className="font-semibold text-foreground"> Lead Operations</span> for payment, inventory, QR, and audit details.
+                      Use <span className="font-semibold text-foreground">Lead Operations</span> for the live lead desk,
+                      <span className="font-semibold text-foreground"> Settings</span> for GPay and ledger tools, and
+                      <span className="font-semibold text-foreground"> Chat History</span> for read-only exports.
                     </p>
                   </div>
                 </div>
@@ -1160,14 +1315,10 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Hero Videos</h2>
-                  <p className="text-xs text-muted-foreground">Manage hero background video playlist for the home page.</p>
+                  <p className="text-xs text-muted-foreground">Manage the cinematic background video playlist for the homepage hero section.</p>
                 </div>
                 <button
-                  onClick={() => {
-                    resetBannerForm();
-                    setBannerNotice(null);
-                    setBannerModalOpen(true);
-                  }}
+                  onClick={() => openCreateBannerModal("hero")}
                   className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
                 >
                   Add Hero Video
@@ -1175,7 +1326,7 @@ export default function AdminPage() {
               </div>
               {bannerNotice ? <p className="mt-2 text-xs text-mint">{bannerNotice}</p> : null}
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {videos.map((video) => (
+                {heroVideos.map((video) => (
                   <article key={video.id} className="overflow-hidden rounded-xl border border-border/60 bg-card/80">
                     <img
                       src={video.cover_url || "https://images.unsplash.com/photo-1527631746610-bca00a040d60"}
@@ -1209,113 +1360,262 @@ export default function AdminPage() {
                     </div>
                   </article>
                 ))}
-                {videos.length === 0 ? <p className="text-sm text-muted-foreground">No hero videos added.</p> : null}
+                {heroVideos.length === 0 ? <p className="text-sm text-muted-foreground">No hero videos added.</p> : null}
               </div>
             </div>
           ) : null}
 
-          {activeView === "conversations" ? (
-            selectedLeadId ? (
-              <div className="flex h-[calc(100vh-190px)] min-h-[700px] flex-col">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-foreground">Conversation Box</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Live chat for lead #{selectedLeadId} · {selectedLeadProperty}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
-                    {selectedLeadStatus}
-                  </span>
+          {activeView === "showcaseVideos" ? (
+            <div className="rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Showcase Videos</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Manage the portrait video cards that appear on the homepage and link visitors straight into a property page.
+                  </p>
                 </div>
-                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/60 bg-background/60 p-2">
-                  <ChatWindow
-                    leadId={selectedLead?.id || selectedLeadId}
-                    role="admin"
-                    actor={session.actor}
-                    authToken={session.chatToken || session.apiToken}
-                    fillHeight
-                    showProofUpload={false}
-                    isVisible={activeView === "conversations"}
-                    quickActions={adminChatQuickActions}
-                    onQuickAction={handleAdminChatQuickAction}
-                  />
-                </div>
+                <button onClick={() => openCreateBannerModal("showcase")} className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">
+                  Add Showcase Video
+                </button>
               </div>
-            ) : (
-              <div className="flex h-[calc(100vh-190px)] min-h-[620px] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background/65 text-sm text-muted-foreground">
-                Select a lead from the left-side conversation list to open the chat window here.
+              {bannerNotice ? <p className="mt-2 text-xs text-mint">{bannerNotice}</p> : null}
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {showcaseVideos.map((video) => {
+                  const linkedProperty = properties.find((property) => property.id === readBannerPropertyId(video)) || null;
+                  return (
+                    <article key={video.id} className="overflow-hidden rounded-[28px] border border-border/60 bg-card/80">
+                      <div className="relative overflow-hidden bg-slate-950">
+                        <div className="pointer-events-none absolute left-1/2 top-3 z-20 h-5 w-24 -translate-x-1/2 rounded-full bg-black/85" />
+                        <div className="aspect-[9/16]">
+                          <video
+                            src={video.url}
+                            className="h-full w-full object-cover"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            preload="metadata"
+                            poster={video.cover_url || linkedProperty?.hero_image || HERO_FALLBACK_COVER}
+                          />
+                        </div>
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgba(2,6,23,0.16)_62%,rgba(2,6,23,0.84)_100%)]" />
+                        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-white/70">Homepage Card</p>
+                          <p className="mt-2 text-base font-semibold">{linkedProperty?.public_title || linkedProperty?.id || "Property not linked"}</p>
+                          <p className="mt-1 text-xs text-white/78">
+                            Opens: {linkedProperty ? `${linkedProperty.id} · ${linkedProperty.location}` : "Select a property when editing"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 p-3">
+                        <button onClick={() => startEditBanner(video)} className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85">
+                          Edit
+                        </button>
+                        <button onClick={() => removeVideoBanner(video.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-xs text-rose-600">
+                          Remove
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+                {showcaseVideos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No showcase videos added yet. Publish vertical clips here to populate the homepage grid.</p>
+                ) : null}
               </div>
-            )
+            </div>
           ) : null}
 
           {activeView === "leadOps" ? (
-            selectedLeadId ? (
-              <div className="h-[calc(100vh-190px)] min-h-[700px] overflow-y-auto pr-1">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2 className="font-bold text-foreground">Lead Operations</h2>
-                    <p className="text-xs text-muted-foreground">All payment, inventory, QR, and customer context tools for the selected lead.</p>
-                  </div>
-                  <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
-                    {selectedLeadStatus}
-                  </span>
-                </div>
-
-                <div className="space-y-3 pb-2">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Lead</p>
-                      <p className="mt-1 font-semibold text-foreground">{context?.lead?.customer_name || selectedLead?.customer_name || "-"}</p>
-                      <p className="text-muted-foreground">{context?.lead?.mobile_number || selectedLead?.mobile_number || "-"}</p>
-                      <p className="mt-1 text-muted-foreground">Property: {selectedLeadProperty}</p>
-                      <p className="text-muted-foreground">Status: {selectedLeadStatus}</p>
-                    </div>
-                    <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Payments</p>
-                      <p className="mt-1 text-foreground/85">Advance: {asMoney(paymentSummary.advance_total)}</p>
-                      <p className="text-foreground/85">Full: {asMoney(paymentSummary.full_total)}</p>
-                      <p className="text-foreground/85">Total: {asMoney(paymentSummary.total)}</p>
-                      <p className="text-foreground/85">Entries: {Number(paymentSummary.count || 0)}</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Pre-Chat Intelligence</p>
-                    <div className="mt-2 grid gap-3 md:grid-cols-2">
+            <div className="grid h-[calc(100vh-190px)] min-h-[700px] gap-3 xl:grid-cols-[320px_1fr]">
+              {renderLeadSelector("Lead Desk", "Select a lead to view details and reopen the live chat from the bottom-right corner.")}
+              <div className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+                {selectedLeadId ? (
+                  <div className="space-y-4 pb-2">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Browsing History</p>
-                        <ul className="mt-1 space-y-1 text-sm text-foreground/85">
-                          {(context?.browsing_history || []).length === 0 ? <li className="text-muted-foreground">No browsing records.</li> : null}
-                          {(context?.browsing_history || []).map((it, idx) => (
-                            <li key={`${it.property_id}-${idx}`}>
-                              {it.property_id} · {it.viewed_at ? new Date(it.viewed_at).toLocaleString() : ""}
-                            </li>
-                          ))}
-                        </ul>
+                        <h2 className="text-xl font-bold text-foreground">Lead Operations</h2>
+                        <p className="text-xs text-muted-foreground">Lead activity stays in this panel while the live chat remains tucked into the bottom-right corner.</p>
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Wishlist</p>
-                        <ul className="mt-1 space-y-1 text-sm text-foreground/85">
-                          {(context?.wishlist || []).length === 0 ? <li className="text-muted-foreground">No wishlist items.</li> : null}
-                          {(context?.wishlist || []).map((it) => (
-                            <li key={it.id}>{it.id}</li>
-                          ))}
-                        </ul>
+                      <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
+                        {selectedLeadStatus}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-3 text-sm">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Lead</p>
+                        <p className="mt-1 font-semibold text-foreground">{context?.lead?.customer_name || selectedLead?.customer_name || "-"}</p>
+                        <p className="text-muted-foreground">{context?.lead?.mobile_number || selectedLead?.mobile_number || "-"}</p>
+                        <p className="mt-1 text-muted-foreground">Property: {selectedLeadProperty}</p>
+                        <p className="text-muted-foreground">Lead ID: #{selectedLeadId}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-3 text-sm">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Payment Summary</p>
+                        <p className="mt-1 text-foreground/85">Advance: {asMoney(paymentSummary.advance_total)}</p>
+                        <p className="text-foreground/85">Full: {asMoney(paymentSummary.full_total)}</p>
+                        <p className="text-foreground/85">Total: {asMoney(paymentSummary.total)}</p>
+                        <p className="text-foreground/85">Entries: {Number(paymentSummary.count || 0)}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-3 text-sm">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Tracking</p>
+                        <p className="mt-1 text-foreground/85">Created: {selectedLead?.created_at ? new Date(selectedLead.created_at).toLocaleString() : "-"}</p>
+                        <p className="text-foreground/85">Updated: {selectedLead?.updated_at ? new Date(selectedLead.updated_at).toLocaleString() : "-"}</p>
+                        <p className="text-foreground/85">Last chat: {selectedLead?.last_message_at ? new Date(selectedLead.last_message_at).toLocaleString() : "No chat yet"}</p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                      <p className="text-sm font-semibold text-foreground">Share GPay in Chat</p>
-                      {gpayNotice ? <p className="mt-2 text-xs text-mint">{gpayNotice}</p> : null}
-                      {qrUrl ? (
-                        <img src={qrUrl} alt="GPay QR" className="mt-2 h-28 w-28 rounded-xl border border-border/60 object-cover" />
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                      <p className="text-sm font-semibold text-foreground">User Entered Details</p>
+                      {tripRequest ? (
+                        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Requested Property</p>
+                            <p className="mt-1 text-sm text-foreground/85">{String(tripRequest.property_id || selectedLeadProperty || "-")}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Dates</p>
+                            <p className="mt-1 text-sm text-foreground/85">
+                              {String(tripRequest.from_date || "-")} to {String(tripRequest.to_date || "-")}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Members</p>
+                            <p className="mt-1 text-sm text-foreground/85">{tripRequest.members ? String(tripRequest.members) : "-"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Captured</p>
+                            <p className="mt-1 text-sm text-foreground/85">
+                              {tripRequest.created_at ? new Date(tripRequest.created_at).toLocaleString() : "-"}
+                            </p>
+                          </div>
+                        </div>
                       ) : (
-                        <p className="mt-2 text-xs text-muted-foreground">No QR uploaded.</p>
+                        <p className="mt-2 text-sm text-muted-foreground">No structured trip requirement was recorded for this lead yet.</p>
                       )}
-                      <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-border/60 bg-card/70 px-3 py-2 text-xs text-foreground/85">
+                      {tripRequest?.content ? <p className="mt-3 rounded-xl bg-background/70 p-3 text-sm text-foreground/85">{tripRequest.content}</p> : null}
+                    </div>
+
+                    <div className="grid gap-3 xl:grid-cols-3">
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                        <p className="text-sm font-semibold text-foreground">Properties Viewed</p>
+                        <div className="mt-3 space-y-2 text-sm">
+                          {(context?.browsing_history || []).length === 0 ? <p className="text-muted-foreground">No viewed properties captured.</p> : null}
+                          {(context?.browsing_history || []).map((item, idx) => (
+                            <div key={`${item.property_id}-${idx}`} className="rounded-xl border border-border/60 bg-background/65 p-3">
+                              <p className="font-medium text-foreground">{item.property_id}</p>
+                              <p className="text-xs text-muted-foreground">{item.viewed_at ? new Date(item.viewed_at).toLocaleString() : "-"}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                        <p className="text-sm font-semibold text-foreground">Wishlisted</p>
+                        <div className="mt-3 space-y-2 text-sm">
+                          {(context?.wishlist || []).length === 0 ? <p className="text-muted-foreground">No wishlist activity recorded.</p> : null}
+                          {(context?.wishlist || []).map((item) => (
+                            <div key={item.id} className="rounded-xl border border-border/60 bg-background/65 p-3">
+                              <p className="font-medium text-foreground">{item.id}</p>
+                              <p className="text-xs text-muted-foreground">{item.location || "Location unavailable"}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                        <p className="text-sm font-semibold text-foreground">Compared</p>
+                        <div className="mt-3 space-y-2 text-sm">
+                          {(context?.compared_properties || []).length === 0 ? <p className="text-muted-foreground">No comparison history recorded.</p> : null}
+                          {(context?.compared_properties || []).map((item) => (
+                            <div key={item.id} className="rounded-xl border border-border/60 bg-background/65 p-3">
+                              <p className="font-medium text-foreground">{item.id}</p>
+                              <p className="text-xs text-muted-foreground">{item.location || "Location unavailable"}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                        <p className="text-sm font-semibold text-foreground">Inventory Check</p>
+                        <textarea
+                          value={inventoryNote}
+                          onChange={(e) => setInventoryNote(e.target.value)}
+                          className="mt-3 h-24 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        />
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={() => void runInventory(true)} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
+                            Available
+                          </button>
+                          <button onClick={() => void runInventory(false)} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white">
+                            Not Available
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                        <p className="text-sm font-semibold text-foreground">Confirmation + WhatsApp</p>
+                        <textarea
+                          value={confirmDetails}
+                          onChange={(e) => setConfirmDetails(e.target.value)}
+                          className="mt-3 h-24 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        />
+                        <input
+                          value={whatsapp}
+                          onChange={(e) => setWhatsapp(e.target.value)}
+                          placeholder="WhatsApp number"
+                          className="mt-3 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        />
+                        <button onClick={() => void runConfirm()} className="mt-3 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900">
+                          Send Confirmed Status
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full min-h-[620px] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/70 text-sm text-muted-foreground">
+                    Select a lead from the second column to open its operational view.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "settings" ? (
+            <div className="grid h-[calc(100vh-190px)] min-h-[700px] gap-3 xl:grid-cols-[280px_1fr]">
+              <div className="flex min-h-0 flex-col rounded-2xl border border-border/60 bg-background/60 p-3 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-mint">Settings</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Platform-level configuration and finance utilities.</p>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <button type="button" onClick={() => setSettingsSection("shareGpay")} className={settingsMenuButtonClass("shareGpay")}>
+                    <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Config</span>
+                    <span className="mt-1 block">Share GPay in Chat</span>
+                  </button>
+                  <button type="button" onClick={() => setSettingsSection("payments")} className={settingsMenuButtonClass("payments")}>
+                    <span className="block text-xs uppercase tracking-[0.18em] text-muted-foreground">Finance</span>
+                    <span className="mt-1 block">Payments</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+                {settingsSection === "shareGpay" ? (
+                  <div className="space-y-4 pb-2">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground">Share GPay in Chat</h2>
+                      <p className="text-xs text-muted-foreground">Store the QR image and mobile number here. The actual send action stays inside live lead chat.</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                      {gpayNotice ? <p className="text-xs text-mint">{gpayNotice}</p> : null}
+                      {qrUrl ? (
+                        <img src={qrUrl} alt="GPay QR" className="mt-3 h-32 w-32 rounded-xl border border-border/60 object-cover" />
+                      ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">No QR configured yet.</p>
+                      )}
+                      <label className="mt-3 inline-flex cursor-pointer items-center rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-xs text-foreground/85">
                         {gpayUploadBusy ? "Uploading..." : qrUrl ? "Replace QR Image" : "Upload QR Image"}
                         <input
                           type="file"
@@ -1330,122 +1630,283 @@ export default function AdminPage() {
                         />
                       </label>
                       {qrUrl ? (
-                        <button
-                          onClick={removeGpayQrImage}
-                          className="mt-2 block rounded-lg border border-rose-300/70 px-3 py-2 text-xs text-rose-600"
-                        >
+                        <button onClick={removeGpayQrImage} className="mt-2 block rounded-lg border border-rose-300/70 px-3 py-2 text-xs text-rose-600">
                           Remove QR Image
                         </button>
                       ) : null}
                       <input
                         value={gpayNumber}
                         onChange={(e) => setGpayNumber(e.target.value)}
-                        placeholder="GPay mobile"
-                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+                        placeholder="GPay mobile number"
+                        className="mt-3 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
                       />
                       <button
-                        onClick={() => void runShareGpay()}
-                        disabled={gpayUploadBusy}
-                        className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
+                        onClick={() => void saveGpayConfig()}
+                        disabled={gpayUploadBusy || gpaySaving}
+                        className="mt-3 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground disabled:opacity-60"
                       >
-                        Send GPay Details
+                        {gpaySaving ? "Saving..." : "Save Settings"}
                       </button>
                     </div>
+                  </div>
+                ) : null}
 
-                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                      <p className="text-sm font-semibold text-foreground">Inventory Check</p>
-                      <textarea
-                        value={inventoryNote}
-                        onChange={(e) => setInventoryNote(e.target.value)}
-                        className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                      />
-                      <div className="mt-2 flex gap-2">
-                        <button onClick={() => void runInventory(true)} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
-                          Available
+                {settingsSection === "payments" ? (
+                  <div className="space-y-4 pb-2">
+                    <div>
+                      <h2 className="text-xl font-bold text-foreground">Payments</h2>
+                      <p className="text-xs text-muted-foreground">Record a payment and review the current ledger in one place.</p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                        <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Lead</label>
+                        <select
+                          value={paymentLeadId === "" ? "" : String(paymentLeadId)}
+                          onChange={(e) => setPaymentLeadId(e.target.value ? Number(e.target.value) : "")}
+                          className="mt-2 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        >
+                          <option value="">Select lead</option>
+                          {leads.map((lead) => (
+                            <option key={lead.id} value={lead.id}>
+                              #{lead.id} · {lead.customer_name} · {lead.property_id}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
+                          className="mt-3 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        />
+                        <select
+                          value={paymentType}
+                          onChange={(e) => setPaymentType(e.target.value as "ADVANCE" | "FULL")}
+                          className="mt-3 w-full rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        >
+                          <option value="ADVANCE">ADVANCE</option>
+                          <option value="FULL">FULL</option>
+                        </select>
+                        <button
+                          onClick={() => {
+                            if (typeof paymentLeadId !== "number") {
+                              setUiError("Select a lead before saving a payment entry.");
+                              return;
+                            }
+                            void runAddPayment(paymentLeadId);
+                          }}
+                          className="mt-3 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white"
+                        >
+                          Save Payment
                         </button>
-                        <button onClick={() => void runInventory(false)} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white">
-                          Not Available
+                      </div>
+                      <div className="rounded-xl border border-border/60 bg-card/80 p-4 text-sm">
+                        <p className="text-sm font-semibold text-foreground">Selected Lead</p>
+                        {paymentEntryLead ? (
+                          <div className="mt-3 space-y-1 text-foreground/85">
+                            <p>Lead #{paymentEntryLead.id}</p>
+                            <p>{paymentEntryLead.customer_name}</p>
+                            <p>{paymentEntryLead.mobile_number}</p>
+                            <p>{paymentEntryLead.property_id}</p>
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-muted-foreground">Pick a lead to record a payment.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                          <p className="text-sm font-semibold text-foreground">Payment Ledger</p>
+                          <p className="text-xs text-muted-foreground">Current ledger for the selected filter, with correction support for mistakes.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={paymentLeadId === "" ? "" : String(paymentLeadId)}
+                          onChange={(e) => setPaymentLeadId(e.target.value ? Number(e.target.value) : "")}
+                          className="rounded-lg border border-border/60 bg-background/70 p-2 text-sm text-foreground/85"
+                        >
+                          <option value="">All leads</option>
+                          {leads.map((lead) => (
+                            <option key={lead.id} value={lead.id}>
+                              #{lead.id} · {lead.customer_name}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="rounded-full bg-background/70 px-3 py-1 text-xs text-muted-foreground">
+                          {filteredPaymentLedger.length} entr{filteredPaymentLedger.length === 1 ? "y" : "ies"}
+                        </span>
+                      </div>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm">
+                        {filteredPaymentLedger.length === 0 ? <p className="text-muted-foreground">No payment entries match the current filter.</p> : null}
+                        {filteredPaymentLedger.map((row) => (
+                          <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/65 p-3">
+                            <div>
+                              <p className="font-medium text-foreground">
+                                #{row.lead_id} · {row.customer_name || "Lead"} · {row.payment_type} · {asMoney(row.amount)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {row.property_id || "Property unavailable"} · {row.created_at ? new Date(row.created_at).toLocaleString() : "-"}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => void runDeletePayment(row.id, row.lead_id)}
+                              className="rounded-lg border border-rose-300/70 px-3 py-2 text-xs font-semibold text-rose-600"
+                            >
+                              Remove Entry
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {activeView === "chatHistory" ? (
+            <div className="grid h-[calc(100vh-190px)] min-h-[700px] gap-3 xl:grid-cols-[320px_1fr]">
+              {renderLeadSelector("Chat History", "Select a lead to read the recorded chat transcript or export it with media links.")}
+              <div className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-background/60 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)]">
+                {selectedLeadId ? (
+                  <div className="space-y-4 pb-2">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-xl font-bold text-foreground">Chat History</h2>
+                        <p className="text-xs text-muted-foreground">Read-only history for the selected lead, with an export that keeps media links intact.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
+                          #{selectedLeadId} · {selectedLeadStatus}
+                        </span>
+                        <button onClick={exportChatHistory} className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">
+                          Export with Media
                         </button>
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                      <p className="text-sm font-semibold text-foreground">Payment Entry</p>
-                      <input
-                        type="number"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
-                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                      />
-                      <select
-                        value={paymentType}
-                        onChange={(e) => setPaymentType(e.target.value as "ADVANCE" | "FULL")}
-                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                      >
-                        <option value="ADVANCE">ADVANCE</option>
-                        <option value="FULL">FULL</option>
-                      </select>
-                      <button onClick={() => void runAddPayment()} className="mt-2 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
-                        Save Payment
-                      </button>
-                    </div>
-
-                    <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                      <p className="text-sm font-semibold text-foreground">Confirmation + WhatsApp</p>
-                      <textarea
-                        value={confirmDetails}
-                        onChange={(e) => setConfirmDetails(e.target.value)}
-                        className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
-                      />
-                      <input
-                        value={whatsapp}
-                        onChange={(e) => setWhatsapp(e.target.value)}
-                        placeholder="WhatsApp Number"
-                        className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
-                      />
-                      <button onClick={() => void runConfirm()} className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900">
-                        Send Confirmed Status
-                      </button>
+                    <div className="space-y-2">
+                      {chatHistory.length === 0 ? <p className="text-sm text-muted-foreground">No recorded messages yet.</p> : null}
+                      {chatHistory.map((message, idx) => {
+                        const mediaLinks = collectMediaLinks(message.metadata);
+                        return (
+                          <div key={`${idx}-${message.created_at || idx}`} className="rounded-xl border border-border/60 bg-card/80 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-foreground">{message.sender_label || message.sender_role || "System"}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {message.message_type || "TEXT"} · {message.created_at ? new Date(message.created_at).toLocaleString() : ""}
+                              </p>
+                            </div>
+                            <p className="mt-2 text-sm text-foreground/85">{message.content || "-"}</p>
+                            {mediaLinks.length > 0 ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {mediaLinks.map((link) => (
+                                  <a
+                                    key={link}
+                                    href={link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded-lg border border-border/60 px-3 py-1.5 text-xs text-foreground/80 hover:bg-background/70"
+                                  >
+                                    Open Media
+                                  </a>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Payment Ledger</p>
-                    <div className="mt-2 max-h-36 space-y-2 overflow-y-auto text-xs">
-                      {paymentRows.length === 0 ? <p className="text-muted-foreground">No payment entries for this lead.</p> : null}
-                      {paymentRows.map((row) => (
-                        <div key={row.id} className="rounded-lg border border-slate-200 bg-card/80 p-2 text-foreground/85">
-                          {row.payment_type} · {asMoney(row.amount)} · {row.created_at ? new Date(row.created_at).toLocaleString() : ""}
-                        </div>
-                      ))}
-                    </div>
+                ) : (
+                  <div className="flex h-full min-h-[620px] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/70 text-sm text-muted-foreground">
+                    Select a lead from the second column to inspect its recorded chat history.
                   </div>
-
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-semibold text-foreground">Recorded Chat History</p>
-                    <div className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs">
-                      {chatHistory.length === 0 ? <p className="text-muted-foreground">No recorded messages yet.</p> : null}
-                      {chatHistory.map((m, idx) => (
-                        <div key={`${idx}-${m.created_at || idx}`} className="rounded-lg border border-slate-200 bg-card/80 p-2">
-                          <p className="text-teal-700">{m.sender_label || m.sender_role || "System"}</p>
-                          <p className="text-foreground/85">{m.content || "-"}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {m.message_type || "TEXT"} · {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
-            ) : (
-              <div className="flex h-[calc(100vh-190px)] min-h-[620px] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background/65 text-sm text-muted-foreground">
-                Select a lead from the left-side conversation list, then open Lead Operations from the menu below it.
-              </div>
-            )
+            </div>
           ) : null}
         </section>
       </div>
+
+      {activeView === "leadOps" && selectedLeadId && !leadDeskChatVisible ? (
+        <div className="fixed bottom-2 right-2 z-50 flex items-center gap-2 rounded-full border border-border/60 bg-card/90 px-2 py-2 shadow-xl backdrop-blur md:bottom-4 md:right-4">
+          <button
+            onClick={() => {
+              setLeadDeskChatVisible(true);
+              setLeadDeskChatUnreadCount(0);
+            }}
+            className="relative rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"
+          >
+            Open Chat
+            {leadDeskChatUnreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-mint px-1 text-[10px] font-bold text-slate-900">
+                {leadDeskChatUnreadCount > 99 ? "99+" : leadDeskChatUnreadCount}
+              </span>
+            ) : null}
+          </button>
+          <button
+            onClick={() => {
+              setLeadDeskChatVisible(false);
+              setLeadDeskChatUnreadCount(0);
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-foreground/85 hover:bg-background"
+            aria-label="Close minimized chat"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {activeView === "leadOps" && selectedLeadId ? (
+        <div
+          className={`fixed bottom-2 right-2 z-50 w-[calc(100vw-1rem)] max-w-[430px] transition duration-200 md:bottom-4 md:right-4 md:max-w-[420px] ${
+            leadDeskChatVisible ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-teal-700">Lead Chat</p>
+                <p className="text-xs font-semibold text-foreground">Aditi Stays Support · #{selectedLeadId}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setLeadDeskChatVisible(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
+                  aria-label="Minimize chat"
+                >
+                  <Minimize2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setLeadDeskChatVisible(false);
+                    setLeadDeskChatUnreadCount(0);
+                  }}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
+                  aria-label="Close chat"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[72vh] overflow-y-auto p-2">
+              <ChatWindow
+                leadId={selectedLead?.id || selectedLeadId}
+                role="admin"
+                actor={session.actor}
+                fillHeight
+                showProofUpload={false}
+                isVisible={leadDeskChatVisible}
+                onUnreadCountChange={setLeadDeskChatUnreadCount}
+                quickActions={adminChatQuickActions}
+                onQuickAction={handleAdminChatQuickAction}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {propertyModalOpen ? (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
@@ -1595,11 +2056,11 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
           <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-card/80 p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-foreground">{editingBannerId ? `Edit Hero Video #${editingBannerId}` : "Add Hero Video"}</h3>
+              <h3 className="text-lg font-bold text-foreground">{editingBannerId ? `Edit ${bannerPlacementLabel} #${editingBannerId}` : `Add ${bannerPlacementLabel}`}</h3>
               <button
                 onClick={() => {
                   setBannerModalOpen(false);
-                  resetBannerForm();
+                  resetBannerForm(bannerPlacement);
                 }}
                 className="rounded-lg border border-border/60 px-3 py-1 text-xs text-foreground/85"
               >
@@ -1607,6 +2068,28 @@ export default function AdminPage() {
               </button>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <select
+                value={bannerPlacement}
+                onChange={(e) => setBannerPlacement(e.target.value as BannerPlacement)}
+                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85 md:col-span-2"
+              >
+                <option value="hero">Hero Background Video</option>
+                <option value="showcase">Homepage Showcase Video</option>
+              </select>
+              {bannerPlacement === "showcase" ? (
+                <select
+                  value={bannerPropertyId}
+                  onChange={(e) => setBannerPropertyId(e.target.value)}
+                  className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85 md:col-span-2"
+                >
+                  <option value="">Select target property</option>
+                  {properties.map((property) => (
+                    <option key={property.id} value={property.id}>
+                      {property.id} · {property.location}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <select
                 value={bannerSourceMode}
                 onChange={(e) => setBannerSourceMode(e.target.value as BannerSourceMode)}
@@ -1619,7 +2102,7 @@ export default function AdminPage() {
                 <input
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="https://cdn.example.com/hero-video.mp4"
+                  placeholder={bannerPlacement === "showcase" ? "https://cdn.example.com/showcase-video.mp4" : "https://cdn.example.com/hero-video.mp4"}
                   className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85 md:col-span-2"
                 />
               ) : (
@@ -1655,6 +2138,16 @@ export default function AdminPage() {
                 </>
               )}
             </div>
+            {bannerPlacement === "showcase" ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                This video will render as a phone-like portrait card on the homepage and open{" "}
+                <span className="font-semibold text-foreground">{selectedShowcaseProperty?.id || "the selected property"}</span> when clicked.
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Hero videos loop in the large homepage banner behind the landing headline.
+              </p>
+            )}
 
             <div className="mt-3 flex gap-2">
               <button
@@ -1662,12 +2155,12 @@ export default function AdminPage() {
                 disabled={bannerSaving}
                 className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
               >
-                {bannerSaving ? "Saving..." : editingBannerId ? "Update Hero Video" : "Save Hero Video"}
+                {bannerSaving ? "Saving..." : editingBannerId ? `Update ${bannerPlacementLabel}` : `Save ${bannerPlacementLabel}`}
               </button>
               <button
                 onClick={() => {
                   setBannerModalOpen(false);
-                  resetBannerForm();
+                  resetBannerForm(bannerPlacement);
                 }}
                 className="rounded-lg border border-border/60 px-3 py-2 text-xs text-foreground/85"
               >

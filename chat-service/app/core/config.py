@@ -29,6 +29,8 @@ class Settings(BaseModel):
 
     admin_api_token: str = os.getenv("ADMIN_API_TOKEN", "")
     admin_chat_token: str = os.getenv("ADMIN_CHAT_TOKEN", "")
+    admin_session_secret: str = os.getenv("ADMIN_SESSION_SECRET", "")
+    admin_session_cookie_name: str = os.getenv("ADMIN_SESSION_COOKIE_NAME", "aditi_admin_session")
     user_chat_token_secret: str = os.getenv("USER_CHAT_TOKEN_SECRET", "")
     chat_rate_limit_per_minute: int = int(os.getenv("CHAT_RATE_LIMIT_PER_MINUTE", "180"))
 
@@ -45,6 +47,7 @@ class Settings(BaseModel):
             raise ValueError("DATABASE_URL is required")
         _require_secret("ADMIN_API_TOKEN", self.admin_api_token)
         _require_secret("ADMIN_CHAT_TOKEN", self.admin_chat_token)
+        _require_secret("ADMIN_SESSION_SECRET", self.admin_session_secret)
         _require_secret("USER_CHAT_TOKEN_SECRET", self.user_chat_token_secret)
         return self
 

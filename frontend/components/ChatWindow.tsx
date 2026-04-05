@@ -311,7 +311,7 @@ export default function ChatWindow({
       await uploadProof(
         leadId,
         file,
-        role === "admin" ? { adminToken: authToken } : { chatToken: authToken }
+        role === "admin" ? { adminActor: actor } : { chatToken: authToken }
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");

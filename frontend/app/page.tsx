@@ -1,48 +1,18 @@
 "use client";
 
-import { ArrowUpRight, ChevronLeft, ChevronRight, Heart, MapPin, Search, SlidersHorizontal, Sparkles, Star } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, MapPin, Play, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  addWishlistItem,
-  getProperties,
-  getPropertyFeedbackSummary,
-  getWishlist,
-  listBanners,
-  removeWishlistItem,
-  trackBrowsing,
-} from "@/lib/api";
+import { getProperties, listBanners, trackBrowsing } from "@/lib/api";
 import { getOrCreateVisitorId } from "@/lib/visitor";
-import { CampaignBanner, Property, PropertyFeedbackSummary } from "@/types";
+import { CampaignBanner, Property } from "@/types";
 
-type SortOption = "recommended" | "price_low_high" | "price_high_low" | "rating_high_low" | "newest";
-type FamilyFilter = "all" | "family_only";
-
-function buildFeedbackMap(rows: PropertyFeedbackSummary[]): Record<string, PropertyFeedbackSummary> {
-  const map: Record<string, PropertyFeedbackSummary> = {};
-  for (const row of rows) {
-    map[row.property_id] = row;
-  }
-  return map;
-}
+type ShowcaseBanner = CampaignBanner & {
+  property: Property;
+};
 
 function normalizeProperty(raw: any): Property {
   return {
@@ -72,8 +42,13 @@ function normalizeBanner(raw: any): CampaignBanner {
   };
 }
 
-function bannerFingerprint(rows: CampaignBanner[]): string {
-  return rows.map((item) => `${item.id}:${item.updated_at || ""}:${item.url}`).join("|");
+function readPlacement(banner: CampaignBanner): "hero" | "showcase" {
+  const placement = typeof banner.metadata?.placement === "string" ? banner.metadata.placement.trim().toLowerCase() : "";
+  return placement === "showcase" ? "showcase" : "hero";
+}
+
+function readPropertyId(banner: CampaignBanner): string {
+  return typeof banner.metadata?.property_id === "string" ? banner.metadata.property_id.trim() : "";
 }
 
 function isDirectVideoBanner(item: CampaignBanner): boolean {
@@ -90,187 +65,73 @@ export default function HomePage() {
   const router = useRouter();
   const [visitorId, setVisitorId] = useState("");
   const [properties, setProperties] = useState<Property[]>([]);
-  const [wishlist, setWishlist] = useState<Property[]>([]);
-  const [feedbackByProperty, setFeedbackByProperty] = useState<Record<string, PropertyFeedbackSummary>>({});
   const [banners, setBanners] = useState<CampaignBanner[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("recommended");
-  const [locationFilter, setLocationFilter] = useState("all");
-  const [familyFilter, setFamilyFilter] = useState<FamilyFilter>("all");
-  const [amenityFilter, setAmenityFilter] = useState("all");
-  const [minBudget, setMinBudget] = useState("");
-  const [maxBudget, setMaxBudget] = useState("");
-  const [minRating, setMinRating] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [bannerHash, setBannerHash] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [heroVideoIndex, setHeroVideoIndex] = useState(0);
-  const [initialLoaded, setInitialLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setVisitorId(getOrCreateVisitorId());
   }, []);
 
-  const refreshCore = useCallback(async () => {
-    const [props, feedback, bannerResponse] = await Promise.all([getProperties(), getPropertyFeedbackSummary(), listBanners()]);
-    const propertyList = ((props.data as any[]) || []).map(normalizeProperty).filter((p) => p.id);
-    const bannerList = ((bannerResponse.data as any[]) || []).map(normalizeBanner).filter((b) => b.active);
-    setProperties(propertyList);
-    setFeedbackByProperty(buildFeedbackMap(feedback.data));
-    setBanners(bannerList);
-    setBannerHash(bannerFingerprint(bannerList));
+  const refreshLanding = useCallback(async () => {
+    const [propsResponse, bannerResponse] = await Promise.all([getProperties(), listBanners()]);
+    setProperties(((propsResponse.data as any[]) || []).map(normalizeProperty).filter((property) => property.id));
+    setBanners(((bannerResponse.data as any[]) || []).map(normalizeBanner).filter((banner) => banner.active));
   }, []);
 
   useEffect(() => {
     let alive = true;
-    void refreshCore()
-      .catch((err) => {
-        if (!alive) return;
-        setError(err instanceof Error ? err.message : "Failed loading homepage");
-      })
-      .finally(() => {
-        if (!alive) return;
-        setInitialLoaded(true);
-      });
+    void refreshLanding().catch((err) => {
+      if (!alive) return;
+      setError(err instanceof Error ? err.message : "Failed loading homepage");
+    });
     return () => {
       alive = false;
     };
-  }, [refreshCore]);
+  }, [refreshLanding]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void listBanners()
-        .then((res) => {
-          const nextList = ((res.data as any[]) || []).map(normalizeBanner).filter((item) => item.active);
-          const nextHash = bannerFingerprint(nextList);
-          setBannerHash((prev) => {
-            if (prev === nextHash) return prev;
-            setBanners(nextList);
-            return nextHash;
-          });
+        .then((response) => {
+          setBanners(((response.data as any[]) || []).map(normalizeBanner).filter((banner) => banner.active));
         })
         .catch(() => undefined);
     }, 45000);
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!visitorId) return;
-    void getWishlist(visitorId)
-      .then((res) => setWishlist(((res.data as any[]) || []).map(normalizeProperty)))
-      .catch(() => undefined);
-  }, [visitorId]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 2500);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  const wishlistSet = useMemo(() => new Set(wishlist.map((w) => w.id)), [wishlist]);
-  const locationOptions = useMemo(() => Array.from(new Set(properties.map((property) => property.location))).sort(), [properties]);
-  const amenityOptions = useMemo(() => Array.from(new Set(properties.flatMap((property) => property.amenities || []))).sort(), [properties]);
-
-  const filteredProperties = useMemo(() => {
-    const min = minBudget ? Number(minBudget) : 0;
-    const max = maxBudget ? Number(maxBudget) : Number.POSITIVE_INFINITY;
-    const ratingMin = minRating ? Number(minRating) : 0;
-    const term = searchTerm.trim().toLowerCase();
-
-    const base = properties.filter((property) => {
-      if (locationFilter !== "all" && property.location !== locationFilter) return false;
-      if (familyFilter === "family_only" && !property.family_friendly) return false;
-      if (amenityFilter !== "all" && !property.amenities.includes(amenityFilter)) return false;
-      if (property.nightly_price < min || property.nightly_price > max) return false;
-      if ((feedbackByProperty[property.id]?.avg_rating ?? 0) < ratingMin) return false;
-      if (!term) return true;
-
-      return (
-        property.id.toLowerCase().includes(term) ||
-        property.location.toLowerCase().includes(term) ||
-        property.description.toLowerCase().includes(term) ||
-        property.amenities.some((amenity) => amenity.toLowerCase().includes(term))
-      );
-    });
-
-    const rows = [...base];
-    if (sortBy === "price_low_high") rows.sort((a, b) => a.nightly_price - b.nightly_price);
-    if (sortBy === "price_high_low") rows.sort((a, b) => b.nightly_price - a.nightly_price);
-    if (sortBy === "rating_high_low") rows.sort((a, b) => (feedbackByProperty[b.id]?.avg_rating ?? 0) - (feedbackByProperty[a.id]?.avg_rating ?? 0));
-    if (sortBy === "newest") rows.sort((a, b) => b.id.localeCompare(a.id));
-    if (sortBy === "recommended") {
-      rows.sort((a, b) => {
-        const aScore = (feedbackByProperty[a.id]?.avg_rating ?? 0) * 100 - a.nightly_price / 100;
-        const bScore = (feedbackByProperty[b.id]?.avg_rating ?? 0) * 100 - b.nightly_price / 100;
-        return bScore - aScore;
-      });
+  const propertyById = useMemo(() => {
+    const map = new Map<string, Property>();
+    for (const property of properties) {
+      map.set(property.id, property);
     }
-    return rows;
-  }, [properties, feedbackByProperty, searchTerm, locationFilter, familyFilter, amenityFilter, minBudget, maxBudget, minRating, sortBy]);
-
-  const refreshWishlist = async () => {
-    if (!visitorId) return;
-    const data = await getWishlist(visitorId);
-    setWishlist(((data.data as any[]) || []).map(normalizeProperty));
-  };
-
-  const openDetails = async (propertyId: string) => {
-    if (visitorId) {
-      await trackBrowsing(visitorId, propertyId).catch(() => undefined);
-    }
-    router.push(`/properties/${encodeURIComponent(propertyId)}`);
-  };
-
-  const toggleWishlist = async (propertyId: string) => {
-    if (!visitorId) return;
-    try {
-      if (wishlistSet.has(propertyId)) {
-        await removeWishlistItem(visitorId, propertyId);
-        setToast(`Removed: ${propertyId}`);
-      } else {
-        await addWishlistItem(visitorId, propertyId);
-        setToast(`Added: ${propertyId}`);
-      }
-      await refreshWishlist();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update shortlist");
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setSortBy("recommended");
-    setLocationFilter("all");
-    setFamilyFilter("all");
-    setAmenityFilter("all");
-    setMinBudget("");
-    setMaxBudget("");
-    setMinRating("");
-  };
-
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (locationFilter !== "all") count += 1;
-    if (familyFilter !== "all") count += 1;
-    if (amenityFilter !== "all") count += 1;
-    if (minBudget) count += 1;
-    if (maxBudget) count += 1;
-    if (minRating) count += 1;
-    if (sortBy !== "recommended") count += 1;
-    return count;
-  }, [locationFilter, familyFilter, amenityFilter, minBudget, maxBudget, minRating, sortBy]);
+    return map;
+  }, [properties]);
 
   const heroVideos = useMemo(() => {
     return banners
+      .filter((banner) => readPlacement(banner) === "hero")
       .filter(isDirectVideoBanner)
       .map((banner) => banner.url)
       .filter(Boolean);
   }, [banners]);
 
+  const showcaseBanners = useMemo<ShowcaseBanner[]>(() => {
+    return banners
+      .filter((banner) => readPlacement(banner) === "showcase")
+      .filter(isDirectVideoBanner)
+      .map((banner) => {
+        const propertyId = readPropertyId(banner);
+        const property = propertyById.get(propertyId);
+        if (!property) return null;
+        return { ...banner, property };
+      })
+      .filter((banner): banner is ShowcaseBanner => Boolean(banner));
+  }, [banners, propertyById]);
+
   const activeHeroVideo = heroVideos[heroVideoIndex] || "";
-  const heroFallbackImage =
-    properties[0]?.hero_image || "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
+  const heroFallbackImage = properties[0]?.hero_image || "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
 
   useEffect(() => {
     if (!heroVideos.length) {
@@ -280,78 +141,21 @@ export default function HomePage() {
     setHeroVideoIndex((prev) => (prev >= heroVideos.length ? 0 : prev));
   }, [heroVideos]);
 
-  const carouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const carouselSnapTimers = useRef<Record<string, number>>({});
-
-  const setCarouselRef = useCallback((propertyId: string, node: HTMLDivElement | null) => {
-    carouselRefs.current[propertyId] = node;
-  }, []);
-
-  const scrollCarouselToIndex = useCallback((propertyId: string, index: number, smooth: boolean) => {
-    const node = carouselRefs.current[propertyId];
-    if (!node) return;
-    const width = Math.max(node.clientWidth, 1);
-    const total = node.children.length;
-    if (!total) return;
-    const nextIndex = Math.max(0, Math.min(total - 1, index));
-    node.scrollTo({ left: nextIndex * width, behavior: smooth ? "smooth" : "auto" });
-  }, []);
-
-  const nudgeCarousel = useCallback(
-    (propertyId: string, delta: number) => {
-      const node = carouselRefs.current[propertyId];
-      if (!node) return;
-      const width = Math.max(node.clientWidth, 1);
-      const current = Math.round(node.scrollLeft / width);
-      scrollCarouselToIndex(propertyId, current + delta, true);
-    },
-    [scrollCarouselToIndex]
-  );
-
-  const scheduleCarouselSnap = useCallback(
-    (propertyId: string) => {
-      const existingTimer = carouselSnapTimers.current[propertyId];
-      if (existingTimer) {
-        window.clearTimeout(existingTimer);
-      }
-      carouselSnapTimers.current[propertyId] = window.setTimeout(() => {
-        const node = carouselRefs.current[propertyId];
-        if (!node) return;
-        const width = Math.max(node.clientWidth, 1);
-        const nearestIndex = Math.round(node.scrollLeft / width);
-        scrollCarouselToIndex(propertyId, nearestIndex, true);
-      }, 120);
-    },
-    [scrollCarouselToIndex]
-  );
-
-  const handleCarouselWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    const { deltaX, deltaY } = event;
-    const verticalIntent = Math.abs(deltaY) > Math.abs(deltaX) * 1.2;
-    if (!verticalIntent) return;
-
-    event.preventDefault();
-    window.scrollBy({
-      top: deltaY,
-      left: 0,
-      behavior: "auto",
-    });
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      Object.values(carouselSnapTimers.current).forEach((timerId) => window.clearTimeout(timerId));
-    };
-  }, []);
-
   const handleHeroVideoEnded = useCallback(() => {
     if (heroVideos.length <= 1) return;
     setHeroVideoIndex((prev) => (prev + 1) % heroVideos.length);
   }, [heroVideos.length]);
 
+  const openDetails = async (propertyId: string) => {
+    if (visitorId) {
+      await trackBrowsing(visitorId, propertyId).catch(() => undefined);
+    }
+    router.push(`/properties/${encodeURIComponent(propertyId)}`);
+  };
+
   return (
-    <main className="relative overflow-x-clip pb-16">
-      <section className="relative h-[64vh] min-h-[500px] w-full overflow-visible md:h-[68vh]">
+    <main className="relative overflow-x-clip pb-20">
+      <section className="relative h-[34vh] min-h-[280px] w-full overflow-hidden md:h-[38vh] md:min-h-[320px]">
         <div className="absolute inset-0 overflow-hidden">
           {activeHeroVideo ? (
             <video
@@ -379,20 +183,10 @@ export default function HomePage() {
               decoding="async"
             />
           )}
-          <div className="absolute inset-0 bg-[linear-gradient(112deg,rgba(4,13,20,0.76)_8%,rgba(4,13,20,0.44)_42%,rgba(4,13,20,0.2)_74%)] dark:bg-[linear-gradient(112deg,rgba(8,31,45,0.82)_8%,rgba(8,31,45,0.5)_42%,rgba(8,31,45,0.24)_74%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(4,13,20,0.84)_8%,rgba(4,13,20,0.55)_38%,rgba(4,13,20,0.2)_74%)]" />
         </div>
 
-        <header className="absolute left-0 right-0 top-0 z-30 mx-auto flex w-full max-w-[1480px] items-center justify-between px-5 py-5 md:px-8 md:py-6">
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/25 bg-black/18 px-4 py-2 text-white backdrop-blur-xl">
-            <span className="h-2 w-2 rounded-full bg-mint shadow-[0_0_0_5px_rgba(83,216,196,0.2)]" />
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.42em] text-white/95">Aditi Stays</p>
-              <p className="text-[11px] text-white/78">Handpicked stays with real concierge</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="relative z-10 mx-auto flex h-full w-full max-w-[1480px] items-end px-5 pb-28 md:px-8 md:pb-32">
+        <div className="relative z-10 mx-auto flex h-full w-full max-w-[1480px] items-end px-5 pb-8 md:px-8 md:pb-10">
           <div className="max-w-4xl space-y-5 text-white">
             <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/12 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-md">
               <Sparkles className="h-3.5 w-3.5 text-white" />
@@ -401,323 +195,117 @@ export default function HomePage() {
             <h1 className="text-4xl font-extrabold leading-[1.03] text-white drop-shadow-[0_6px_22px_rgba(2,6,23,0.46)] md:text-6xl lg:text-7xl">
               Not just stays. Signature experiences.
             </h1>
-            <p
-              className="relative z-10 max-w-2xl text-sm font-medium drop-shadow-[0_4px_18px_rgba(2,6,23,0.44)] md:text-base"
-              style={{ color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
-            >
+            <p className="max-w-2xl text-sm font-medium text-white/92 drop-shadow-[0_4px_18px_rgba(2,6,23,0.44)] md:text-base">
               Discover handpicked properties, shortlist instantly, and connect with a real concierge for availability and confirmation.
             </p>
-          </div>
-        </div>
-
-        <div className="absolute bottom-[-58px] left-1/2 z-40 w-[calc(100%-1.25rem)] max-w-[1260px] -translate-x-1/2 md:bottom-[-52px]">
-          <div className="grid gap-2 rounded-[26px] border border-white/45 bg-white/92 p-2 shadow-[0_34px_72px_-44px_rgba(8,31,45,0.7)] backdrop-blur-xl dark:border-white/15 dark:bg-card/92 md:grid-cols-[1fr_240px_auto] md:items-center md:rounded-full md:p-2.5">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search destination, vibe, or property"
-                className="h-12 rounded-full border-0 bg-transparent pl-10 text-sm shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Link href="/properties">
+                <Button className="h-12 rounded-full bg-accent px-6 text-accent-foreground shadow-[0_12px_36px_-20px_rgba(248,181,0,0.9)]">
+                  View All Properties
+                  <ArrowUpRight className="h-4 w-4" />
+                </Button>
+              </Link>
             </div>
-
-            <div>
-              <Select value={locationFilter} onValueChange={setLocationFilter}>
-                <SelectTrigger className="h-12 rounded-full border-0 bg-muted/60 shadow-none ring-0 focus:ring-0 dark:bg-background/55">
-                  <SelectValue placeholder="Choose Location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Locations</SelectItem>
-                  {locationOptions.map((loc) => (
-                    <SelectItem key={loc} value={loc}>
-                      {loc}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              variant="secondary"
-              onClick={() => setAdvancedOpen(true)}
-              className="h-12 rounded-full bg-accent px-7 text-accent-foreground shadow-[0_12px_36px_-20px_rgba(248,181,0,0.9)] transition hover:brightness-105"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
-            </Button>
           </div>
         </div>
       </section>
 
-      <Dialog open={advancedOpen} onOpenChange={setAdvancedOpen}>
-        <DialogContent className="max-w-3xl border-border/70 bg-white dark:bg-card">
-          <DialogHeader>
-            <DialogTitle>Refine Your Search</DialogTitle>
-            <DialogDescription>Adjust ranking, budget, and stay preferences. Your core search remains active.</DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 py-1 md:grid-cols-2">
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="recommended">Recommended</SelectItem>
-                <SelectItem value="price_low_high">Price: Low to High</SelectItem>
-                <SelectItem value="price_high_low">Price: High to Low</SelectItem>
-                <SelectItem value="rating_high_low">Rating: High to Low</SelectItem>
-                <SelectItem value="newest">Newest</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={familyFilter} onValueChange={(value) => setFamilyFilter(value as FamilyFilter)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Stay Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Stays</SelectItem>
-                <SelectItem value="family_only">Family Friendly</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={amenityFilter} onValueChange={setAmenityFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Amenity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Amenities</SelectItem>
-                {amenityOptions.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={minRating || "any"} onValueChange={(value) => setMinRating(value === "any" ? "" : value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Min Rating" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Any</SelectItem>
-                <SelectItem value="3">3+</SelectItem>
-                <SelectItem value="4">4+</SelectItem>
-                <SelectItem value="4.5">4.5+</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Input type="number" value={minBudget} onChange={(e) => setMinBudget(e.target.value)} placeholder="Min ₹" />
-            <Input type="number" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} placeholder="Max ₹" />
+      <section className="mx-auto mt-8 w-full max-w-[1480px] px-5 md:mt-10 md:px-8">
+        <div className="relative overflow-hidden rounded-[38px] border border-border/60 bg-[radial-gradient(circle_at_top_left,rgba(83,216,196,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(248,181,0,0.18),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,250,251,0.94)_45%,rgba(248,249,251,0.97))] px-5 py-8 shadow-[0_30px_70px_-46px_rgba(8,31,45,0.68)] backdrop-blur-xl md:px-7 md:py-10 dark:bg-[radial-gradient(circle_at_top_left,rgba(83,216,196,0.16),transparent_26%),radial-gradient(circle_at_top_right,rgba(248,181,0,0.12),transparent_22%),linear-gradient(180deg,rgba(8,31,45,0.96),rgba(10,24,38,0.94)_48%,rgba(10,16,28,0.96))]">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -left-16 top-24 h-44 w-44 rounded-full bg-mint/18 blur-3xl" />
+            <div className="absolute right-[-36px] top-10 h-40 w-40 rounded-full bg-accent/18 blur-3xl" />
+            <div className="absolute bottom-[-48px] left-1/3 h-40 w-40 rounded-full bg-sky-200/30 blur-3xl dark:bg-sky-400/10" />
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={clearFilters}>
-              Reset
-            </Button>
-            <Button className="bg-accent text-accent-foreground" onClick={() => setAdvancedOpen(false)}>
-              Apply Filters
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <section className="mx-auto mt-24 w-full max-w-[1480px] space-y-10 px-5 md:mt-28 md:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.34em] text-mint">Featured Collection</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground md:text-4xl">Find Your Next Escape</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">{filteredProperties.length} matching stays</p>
-        </div>
-
-        {wishlist.length > 0 ? (
-          <div className="rounded-3xl border border-border/60 bg-card/70 px-4 py-4 shadow-[0_20px_56px_-40px_rgba(8,31,45,0.65)] backdrop-blur-xl md:px-5">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">Your Shortlisted Stays</p>
-              <p className="text-xs text-muted-foreground">{wishlist.length} saved</p>
+          <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.34em] text-mint">Showcased Stays</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground md:text-4xl">Tap the story. Open the stay.</h2>
             </div>
-            <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
-              {wishlist.map((item) => (
-                <article
-                  key={item.id}
-                  className="group relative min-w-[200px] overflow-hidden rounded-2xl border border-border/60 bg-background/65 shadow-[0_14px_34px_-26px_rgba(8,31,45,0.6)]"
+            <p className="max-w-xl text-sm text-muted-foreground">
+              These highlighted videos are meant to sell the feeling first. If a property catches attention, one click takes the visitor straight to its detail page.
+            </p>
+          </div>
+
+          {showcaseBanners.length > 0 ? (
+            <div className="relative z-10 mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+              {showcaseBanners.map((banner) => (
+                <button
+                  key={banner.id}
+                  type="button"
+                  onClick={() => void openDetails(banner.property.id)}
+                  className="group w-full text-left"
                 >
-                  <button className="block w-full text-left" onClick={() => void openDetails(item.id)}>
-                    <img
-                      src={item.hero_image}
-                      alt={item.id}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-28 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                      onError={(event) => {
-                        event.currentTarget.src = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
-                      }}
-                    />
-                    <div className="p-2">
-                      <p className="line-clamp-1 text-xs font-semibold text-foreground">{item.id}</p>
-                      <p className="text-[11px] text-muted-foreground">{item.location}</p>
+                  <article className="h-full rounded-[30px] border border-white/45 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(255,255,255,0.72))] p-3 shadow-[0_24px_58px_-38px_rgba(8,31,45,0.62)] transition duration-300 group-hover:-translate-y-1 group-hover:border-mint/45 group-hover:shadow-[0_32px_76px_-38px_rgba(8,31,45,0.75)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(8,31,45,0.76))]">
+                    <div className="overflow-hidden rounded-[24px] border border-black/5 bg-slate-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:border-white/10">
+                      <div className="relative aspect-[4/5] overflow-hidden">
+                        <video
+                          src={banner.url}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                          poster={banner.cover_url || banner.property.hero_image}
+                        />
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.06)_0%,rgba(2,6,23,0.14)_48%,rgba(2,6,23,0.72)_100%)]" />
+                        <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/28 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-white backdrop-blur-md">
+                          <Play className="h-3.5 w-3.5" />
+                          Featured
+                        </div>
+                      </div>
                     </div>
-                  </button>
-                  <button
-                    onClick={() => void toggleWishlist(item.id)}
-                    aria-label={`Remove ${item.id} from shortlist`}
-                    className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-rose-500 shadow-sm dark:bg-base/85"
-                  >
-                    <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
-                  </button>
-                </article>
+
+                    <div className="px-1 pb-1 pt-4">
+                      <p className="text-lg font-semibold leading-tight text-foreground">{banner.property.public_title || banner.property.id}</p>
+                      <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4 text-mint" />
+                        {banner.property.location}
+                      </p>
+                      <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+                        <span className="font-semibold text-foreground">₹{banner.property.nightly_price}</span>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-mint/30 bg-mint/8 px-3 py-1 text-foreground transition group-hover:border-mint/45 group-hover:bg-mint/12">
+                          Open Property
+                          <ArrowUpRight className="h-4 w-4" />
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </button>
               ))}
             </div>
-          </div>
-        ) : null}
-
-        <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredProperties.map((property, idx) => {
-            const feedback = feedbackByProperty[property.id];
-            const gallery = [property.hero_image, ...(property.media || [])].filter(
-              (src, i, arr) => Boolean(src) && arr.indexOf(src) === i
-            ).slice(0, 6);
-
-            return (
-              <article key={property.id} className="group [content-visibility:auto]">
-                <div className="relative overflow-hidden rounded-[28px] shadow-[0_18px_44px_-36px_rgba(8,31,45,0.58)]">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => void openDetails(property.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        void openDetails(property.id);
-                      }
-                    }}
-                    className="block w-full cursor-pointer"
-                  >
-                    <div
-                      ref={(node) => setCarouselRef(property.id, node)}
-                      onWheel={handleCarouselWheel}
-                      onScroll={() => scheduleCarouselSnap(property.id)}
-                      className="no-scrollbar flex w-full snap-x snap-mandatory scroll-smooth overflow-x-auto"
-                    >
-                      {gallery.map((imageUrl, imageIndex) => (
-                        <img
-                          key={`${property.id}-${imageUrl}-${imageIndex}`}
-                          src={imageUrl}
-                          alt={`${property.id}-${imageIndex + 1}`}
-                          loading={idx < 2 && imageIndex === 0 ? "eager" : "lazy"}
-                          decoding="async"
-                          className="h-[260px] min-w-full snap-always snap-start object-cover transition-transform duration-300 group-hover:scale-[1.015]"
-                          onError={(e) => {
-                            e.currentTarget.src = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {gallery.length > 1 ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void nudgeCarousel(property.id, -1);
-                        }}
-                        className="absolute left-3 top-1/2 z-20 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/42 text-white backdrop-blur-md transition hover:bg-black/60"
-                        aria-label="Previous image"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void nudgeCarousel(property.id, 1);
-                        }}
-                        className="absolute right-3 top-1/2 z-20 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/42 text-white backdrop-blur-md transition hover:bg-black/60"
-                        aria-label="Next image"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </>
-                  ) : null}
-
-                  <button
-                    onClick={() => void toggleWishlist(property.id)}
-                    aria-label={wishlistSet.has(property.id) ? "Remove from wishlist" : "Add to wishlist"}
-                    className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/86 shadow-md backdrop-blur-md transition-all hover:scale-105 dark:bg-base/86"
-                  >
-                    <Heart
-                      className={`h-5 w-5 transition-colors ${wishlistSet.has(property.id) ? "fill-rose-500 text-rose-500" : "text-slate-700 dark:text-white"}`}
-                    />
-                  </button>
-
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/45 to-transparent" />
-                  <div className="absolute bottom-3 left-4 rounded-full bg-white/18 px-3 py-1 text-[11px] font-semibold tracking-wide text-white backdrop-blur-md">
-                    {property.id}
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-2 px-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 text-mint" />
-                        {property.location}
-                      </p>
-                      <button
-                        onClick={() => void openDetails(property.id)}
-                        className="mt-1 text-left text-lg font-semibold text-foreground transition-colors hover:text-mint"
-                      >
-                        {property.public_title || property.id}
-                      </button>
-                    </div>
-                    <p className="text-lg font-bold text-foreground">₹{property.nightly_price}</p>
-                  </div>
-
-                  <p className="line-clamp-2 text-sm text-muted-foreground">{property.description || "-"}</p>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <p className="flex items-center gap-1 text-sm text-mint">
-                      <Star className="h-4 w-4 fill-mint text-mint" />
-                      {feedback ? feedback.avg_rating.toFixed(1) : "0.0"}
-                      <span className="text-xs text-muted-foreground">({feedback?.review_count ?? 0})</span>
-                    </p>
-                    <button
-                      onClick={() => void openDetails(property.id)}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-foreground/85 transition-colors hover:text-mint"
-                    >
-                      Explore
-                      <ArrowUpRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+          ) : (
+            <div className="relative z-10 mt-8 rounded-3xl border border-border/60 bg-card/70 px-5 py-12 text-center shadow-[0_20px_56px_-40px_rgba(8,31,45,0.65)] backdrop-blur-xl">
+              <p className="text-base font-semibold text-foreground">No showcase videos published yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">Add premium showcase videos from the admin panel and they will appear here automatically.</p>
+            </div>
+          )}
         </div>
+      </section>
 
-        {initialLoaded && filteredProperties.length === 0 ? (
-          <div className="rounded-3xl border border-border/60 bg-card/70 px-5 py-10 text-center shadow-[0_20px_56px_-40px_rgba(8,31,45,0.65)] backdrop-blur-xl">
-            <p className="text-base font-semibold text-foreground">No stays match this filter</p>
-            <p className="mt-1 text-sm text-muted-foreground">Try reducing filters or switch to another location.</p>
-            <Button onClick={clearFilters} className="mt-4 rounded-full bg-accent px-5 text-accent-foreground">
-              Reset Filters
-            </Button>
+      <section className="mx-auto mt-16 w-full max-w-[980px] px-5 text-center md:px-8">
+        <div className="rounded-[32px] border border-border/60 bg-card/78 px-6 py-10 shadow-[0_24px_60px_-42px_rgba(8,31,45,0.72)] backdrop-blur-xl">
+          <p className="text-xs uppercase tracking-[0.34em] text-mint">Full Catalog</p>
+          <h3 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">Want the full collection?</h3>
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-muted-foreground md:text-base">
+            Browse the complete property list, filters, wishlist, and search experience on the dedicated all-properties page.
+          </p>
+          <div className="mt-6">
+            <Link href="/properties">
+              <Button className="h-12 rounded-full bg-accent px-6 text-accent-foreground shadow-[0_12px_36px_-20px_rgba(248,181,0,0.9)]">
+                View All Properties
+                <ArrowUpRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </div>
-        ) : null}
+        </div>
       </section>
 
       {error ? (
-        <div className="mx-auto mt-6 w-full max-w-[1480px] rounded-xl border border-rose-300/40 bg-rose-500/10 px-5 py-3 text-sm text-rose-600 dark:text-rose-300 md:px-8">
+        <div className="mx-auto mt-6 w-full max-w-[1480px] rounded-xl border border-rose-300/40 bg-rose-500/10 px-5 py-3 text-sm text-rose-600 md:px-8 dark:text-rose-300">
           {error}
-        </div>
-      ) : null}
-
-      {toast ? (
-        <div className="fixed bottom-4 left-4 z-50 rounded-full bg-white/95 px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur dark:bg-card/95 dark:text-mint">
-          {toast}
         </div>
       ) : null}
     </main>

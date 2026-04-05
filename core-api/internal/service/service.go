@@ -121,9 +121,12 @@ func (s *Service) UpdateProperty(ctx context.Context, id string, in models.Prope
 	return row, nil
 }
 
-func (s *Service) CompareProperties(ctx context.Context, ids []string) ([]models.Property, error) {
+func (s *Service) CompareProperties(ctx context.Context, ids []string, visitorID string) ([]models.Property, error) {
 	props, err := s.repo.GetPropertiesByIDs(ctx, ids)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.RecordComparison(ctx, visitorID, ids); err != nil {
 		return nil, err
 	}
 	result := make([]models.Property, 0, len(props))
@@ -228,6 +231,25 @@ func (s *Service) AddPayment(ctx context.Context, leadID int64, amount float64, 
 	})
 
 	return payment, nil
+}
+
+func (s *Service) DeletePayment(ctx context.Context, leadID, paymentID int64) (*models.Payment, string, error) {
+	deleted, nextStatus, err := s.repo.DeletePayment(ctx, leadID, paymentID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	_ = s.publishEvent(ctx, map[string]any{
+		"event":        "payment_deleted",
+		"lead_id":      leadID,
+		"payment_id":   paymentID,
+		"payment_type": deleted.PaymentType,
+		"amount":       deleted.Amount,
+		"next_status":  nextStatus,
+		"created_at":   time.Now().UTC(),
+	})
+
+	return deleted, nextStatus, nil
 }
 
 func (s *Service) GenerateUserChatToken(leadID int64) (string, error) {

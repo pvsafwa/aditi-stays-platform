@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"aditi-stays/core-api/internal/auth"
 	"aditi-stays/core-api/internal/config"
 	"aditi-stays/core-api/internal/db"
 	"aditi-stays/core-api/internal/handler"
@@ -44,7 +45,8 @@ func main() {
 		log.Fatalf("failed to ensure schema: %v", err)
 	}
 	svc := service.New(repo, redisClient, cfg.ChatNotificationChannel, cfg.UserChatTokenSecret)
-	h := handler.New(svc, repo)
+	sessionManager := auth.NewManager(cfg.AdminSessionSecret)
+	h := handler.New(svc, repo, cfg, sessionManager)
 
 	metrics := middleware.NewMetricsCollector()
 	globalLimiter := middleware.NewIPRateLimiter(cfg.GlobalRateLimitPerMinute, time.Minute)
@@ -63,7 +65,7 @@ func main() {
 		c.Data(http.StatusOK, "text/plain; version=0.0.4", []byte(metrics.PrometheusText()))
 	})
 
-	h.RegisterRoutes(g, middleware.AdminAuth(cfg.AdminAPIToken), leadLimiter.Middleware())
+	h.RegisterRoutes(g, middleware.AdminAuth(cfg.AdminAPIToken, cfg.AdminSessionCookieName, sessionManager), leadLimiter.Middleware())
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

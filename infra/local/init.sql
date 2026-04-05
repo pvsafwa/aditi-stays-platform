@@ -27,6 +27,20 @@ CREATE TABLE IF NOT EXISTS wishlist_items (
     UNIQUE(visitor_id, property_id)
 );
 
+CREATE TABLE IF NOT EXISTS comparison_history (
+    id BIGSERIAL PRIMARY KEY,
+    visitor_id TEXT NOT NULL,
+    property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    compared_with_property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS platform_settings (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS leads (
     id BIGSERIAL PRIMARY KEY,
     visitor_id TEXT NOT NULL,
@@ -112,6 +126,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_browsing_history_visitor ON browsing_history(visitor_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_visitor ON wishlist_items(visitor_id);
+CREATE INDEX IF NOT EXISTS idx_comparison_history_visitor_created ON comparison_history(visitor_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_visitor ON leads(visitor_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_lead ON chat_messages(lead_id, created_at);
