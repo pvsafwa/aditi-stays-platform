@@ -662,6 +662,96 @@ func (r *Repository) ensureDefaultCatalog(ctx context.Context) error {
 }
 
 func (r *Repository) EnsureSchema(ctx context.Context) error {
+	// Base schema: the application self-bootstraps every table and index it
+	// depends on, so no external SQL bootstrap step is required to run it.
+	if _, err := r.db.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS properties (
+			id TEXT PRIMARY KEY,
+			public_title TEXT NOT NULL,
+			location TEXT NOT NULL,
+			nightly_price NUMERIC(10,2) NOT NULL,
+			family_friendly BOOLEAN NOT NULL DEFAULT true,
+			amenities JSONB NOT NULL DEFAULT '[]'::jsonb,
+			hero_image TEXT NOT NULL,
+			media JSONB NOT NULL DEFAULT '[]'::jsonb,
+			description TEXT NOT NULL,
+			active BOOLEAN NOT NULL DEFAULT true,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE TABLE IF NOT EXISTS browsing_history (
+			id BIGSERIAL PRIMARY KEY,
+			visitor_id TEXT NOT NULL,
+			property_id TEXT NOT NULL REFERENCES properties(id),
+			viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE TABLE IF NOT EXISTS wishlist_items (
+			id BIGSERIAL PRIMARY KEY,
+			visitor_id TEXT NOT NULL,
+			property_id TEXT NOT NULL REFERENCES properties(id),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(visitor_id, property_id)
+		);
+		CREATE TABLE IF NOT EXISTS leads (
+			id BIGSERIAL PRIMARY KEY,
+			visitor_id TEXT NOT NULL,
+			property_id TEXT NOT NULL REFERENCES properties(id),
+			customer_name TEXT NOT NULL,
+			mobile_number TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'NEW_INQUIRY',
+			disclaimer_accepted BOOLEAN NOT NULL DEFAULT false,
+			inventory_checked BOOLEAN NOT NULL DEFAULT false,
+			admin_notes TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE TABLE IF NOT EXISTS payments (
+			id BIGSERIAL PRIMARY KEY,
+			lead_id BIGINT NOT NULL REFERENCES leads(id),
+			amount NUMERIC(10,2) NOT NULL,
+			payment_type TEXT NOT NULL CHECK (payment_type IN ('ADVANCE', 'FULL')),
+			source TEXT NOT NULL DEFAULT 'GPAY',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE TABLE IF NOT EXISTS chat_messages (
+			id BIGSERIAL PRIMARY KEY,
+			lead_id BIGINT NOT NULL REFERENCES leads(id),
+			sender_role TEXT NOT NULL,
+			sender_label TEXT NOT NULL,
+			message_type TEXT NOT NULL DEFAULT 'TEXT',
+			content TEXT NOT NULL,
+			metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE TABLE IF NOT EXISTS payment_proofs (
+			id BIGSERIAL PRIMARY KEY,
+			lead_id BIGINT NOT NULL REFERENCES leads(id),
+			file_url TEXT NOT NULL,
+			uploaded_by TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE TABLE IF NOT EXISTS audit_logs (
+			id BIGSERIAL PRIMARY KEY,
+			actor TEXT NOT NULL,
+			actor_role TEXT NOT NULL,
+			action TEXT NOT NULL,
+			resource_type TEXT NOT NULL,
+			resource_id TEXT,
+			request_id TEXT,
+			ip_address TEXT,
+			user_agent TEXT,
+			payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_browsing_history_visitor ON browsing_history(visitor_id);
+		CREATE INDEX IF NOT EXISTS idx_wishlist_visitor ON wishlist_items(visitor_id);
+		CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+		CREATE INDEX IF NOT EXISTS idx_leads_visitor ON leads(visitor_id);
+		CREATE INDEX IF NOT EXISTS idx_chat_messages_lead ON chat_messages(lead_id, created_at);
+		CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+	`); err != nil {
+		return err
+	}
+
 	_, err := r.db.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS property_feedback (
 			id BIGSERIAL PRIMARY KEY,

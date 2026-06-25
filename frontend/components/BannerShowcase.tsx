@@ -85,7 +85,7 @@ export default function BannerShowcase({ banners }: { banners: CampaignBanner[] 
           return (
             <article
               key={`${banner.id}-${index}`}
-              className="group relative min-w-[74%] snap-start overflow-hidden rounded-[24px] bg-transparent shadow-[0_20px_46px_-32px_rgba(8,31,45,0.62)] sm:min-w-[52%] md:min-w-[calc((100%-3rem)/4)]"
+              className="group relative min-w-[74%] snap-start overflow-hidden rounded-2xl bg-transparent shadow-luxe transition duration-500 hover:-translate-y-0.5 sm:min-w-[52%] md:min-w-[calc((100%-3rem)/4)]"
             >
               <div className="relative h-52 w-full overflow-hidden bg-muted md:h-56">
                 {media.kind === "youtube" ? (
@@ -125,10 +125,10 @@ export default function BannerShowcase({ banners }: { banners: CampaignBanner[] 
                     decoding="async"
                   />
                 )}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
-                <div className="absolute bottom-3 left-3 right-3">
-                  <p className="line-clamp-1 text-sm font-semibold text-white drop-shadow">{banner.title}</p>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/75">{banner.platform}</p>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[rgba(26,22,17,0.72)] via-[rgba(26,22,17,0.2)] to-transparent" />
+                <div className="absolute bottom-3 left-4 right-4">
+                  <p className="font-display line-clamp-1 text-base font-medium leading-snug text-white drop-shadow">{banner.title}</p>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-[0.3em] text-accent/90">{banner.platform}</p>
                 </div>
               </div>
             </article>

@@ -43,7 +43,7 @@ func main() {
 	if err := repo.EnsureSchema(context.Background()); err != nil {
 		log.Fatalf("failed to ensure schema: %v", err)
 	}
-	svc := service.New(repo, redisClient, cfg.ChatNotificationChannel, cfg.UserChatTokenSecret)
+	svc := service.New(repo, redisClient, cfg.ChatNotificationChannel, cfg.UserChatTokenSecret, cfg.UserChatTokenTTL)
 	h := handler.New(svc, repo)
 
 	metrics := middleware.NewMetricsCollector()

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,66 +6,68 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 217 33% 17%;
-    --card: 0 0% 100%;
-    --card-foreground: 217 33% 17%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 217 33% 17%;
+    /* Warm luxe / editorial — ivory, espresso ink, terracotta + brass gold */
+    --background: 40 38% 96%; /* warm ivory */
+    --foreground: 25 22% 16%; /* espresso ink */
+    --card: 42 44% 98%;
+    --card-foreground: 25 22% 16%;
+    --popover: 42 44% 98%;
+    --popover-foreground: 25 22% 16%;
 
-    --primary: 44 96% 49%;
-    --primary-foreground: 210 40% 10%;
-    --secondary: 210 36% 94%;
-    --secondary-foreground: 217 33% 20%;
-    --muted: 210 32% 95%;
-    --muted-foreground: 215 16% 46%;
+    --primary: 16 56% 46%; /* terracotta / clay */
+    --primary-foreground: 40 50% 98%;
+    --secondary: 36 30% 90%; /* warm sand */
+    --secondary-foreground: 25 26% 22%;
+    --muted: 38 28% 93%;
+    --muted-foreground: 28 12% 42%; /* warm taupe */
 
-    --accent: 44 96% 49%;
-    --accent-foreground: 210 40% 10%;
-    --destructive: 0 84% 60%;
+    --accent: 38 60% 50%; /* brass gold */
+    --accent-foreground: 25 32% 16%;
+    --destructive: 4 68% 49%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 30% 90%;
-    --input: 214 30% 90%;
-    --ring: 169 63% 59%;
+    --border: 34 24% 86%; /* warm sand line */
+    --input: 34 24% 86%;
+    --ring: 38 60% 50%;
 
-    --chart-1: 44 96% 49%;
-    --chart-2: 169 63% 59%;
-    --chart-3: 210 34% 38%;
-    --chart-4: 197 58% 45%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.85rem;
+    --chart-1: 16 56% 46%;
+    --chart-2: 38 60% 50%;
+    --chart-3: 28 30% 38%;
+    --chart-4: 24 42% 58%;
+    --chart-5: 8 54% 56%;
+    --radius: 0.9rem;
   }
 
   .dark {
-    --background: 205 70% 10%; /* #081f2d */
-    --foreground: 195 45% 96%;
-    --card: 203 63% 16%; /* #0f2f42 */
-    --card-foreground: 195 45% 96%;
-    --popover: 203 63% 16%;
-    --popover-foreground: 195 45% 96%;
+    /* Warm espresso night — no cold navy */
+    --background: 26 16% 9%; /* #1a1611 */
+    --foreground: 38 30% 92%;
+    --card: 26 15% 12%; /* #221d18 */
+    --card-foreground: 38 30% 92%;
+    --popover: 26 15% 12%;
+    --popover-foreground: 38 30% 92%;
 
-    --primary: 44 96% 49%; /* #f8b500 */
-    --primary-foreground: 205 70% 10%;
-    --secondary: 204 48% 22%;
-    --secondary-foreground: 195 45% 96%;
-    --muted: 204 44% 20%;
-    --muted-foreground: 196 21% 74%;
+    --primary: 16 62% 54%; /* lifted terracotta */
+    --primary-foreground: 26 24% 10%;
+    --secondary: 28 12% 20%;
+    --secondary-foreground: 38 30% 92%;
+    --muted: 28 10% 18%;
+    --muted-foreground: 34 14% 66%;
 
-    --accent: 44 96% 49%;
-    --accent-foreground: 205 70% 10%;
-    --destructive: 0 72% 50%;
+    --accent: 40 64% 56%; /* brass gold */
+    --accent-foreground: 26 32% 12%;
+    --destructive: 4 62% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 203 52% 26%;
-    --input: 203 52% 26%;
-    --ring: 169 63% 59%; /* #53d8c4 */
+    --border: 28 12% 22%;
+    --input: 28 12% 22%;
+    --ring: 40 64% 56%;
 
-    --chart-1: 44 96% 49%;
-    --chart-2: 169 63% 59%;
-    --chart-3: 204 44% 36%;
-    --chart-4: 198 52% 58%;
-    --chart-5: 27 87% 67%;
+    --chart-1: 16 62% 54%;
+    --chart-2: 40 64% 56%;
+    --chart-3: 28 24% 50%;
+    --chart-4: 24 38% 60%;
+    --chart-5: 8 54% 60%;
   }
 
   * {
@@ -78,7 +80,10 @@
     margin: 0;
     padding: 0;
     min-height: 100vh;
-    font-family: "Plus Jakarta Sans", "Sora", ui-sans-serif, system-ui;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv05", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     @apply bg-background text-foreground;
   }
 
@@ -88,22 +93,24 @@
   h4,
   h5,
   h6 {
-    font-family: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui;
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
   }
 
   body {
     background:
-      radial-gradient(circle at 0% 0%, hsl(169 63% 59% / 0.14), transparent 30%),
-      radial-gradient(circle at 100% 0%, hsl(44 96% 49% / 0.2), transparent 28%),
-      linear-gradient(160deg, hsl(var(--background)) 30%, hsl(var(--background)) 100%);
+      radial-gradient(circle at 0% 0%, hsl(38 60% 50% / 0.10), transparent 32%),
+      radial-gradient(circle at 100% 0%, hsl(16 56% 46% / 0.10), transparent 30%),
+      linear-gradient(160deg, hsl(var(--background)) 30%, hsl(36 34% 94%) 100%);
     background-attachment: scroll;
   }
 
   .dark body {
     background:
-      radial-gradient(circle at 0% 0%, hsl(169 63% 59% / 0.2), transparent 30%),
-      radial-gradient(circle at 100% 0%, hsl(44 96% 49% / 0.22), transparent 30%),
-      linear-gradient(160deg, #081f2d 35%, #071927 100%);
+      radial-gradient(circle at 0% 0%, hsl(40 64% 56% / 0.12), transparent 32%),
+      radial-gradient(circle at 100% 0%, hsl(16 62% 54% / 0.14), transparent 30%),
+      linear-gradient(160deg, #1a1611 35%, #14100b 100%);
     background-attachment: scroll;
   }
 
@@ -113,21 +120,36 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: hsl(169 63% 59% / 0.45);
+    background: hsl(38 60% 50% / 0.45);
     border-radius: 999px;
   }
 
   *::-webkit-scrollbar-track {
-    background: hsl(var(--border) / 0.22);
+    background: hsl(var(--border) / 0.25);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-optical-sizing: auto;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
   }
 }
 
 @keyframes glowPulse {
   0% {
-    box-shadow: 0 0 0 0 hsl(169 63% 59% / 0.3);
+    box-shadow: 0 0 0 0 hsl(38 60% 50% / 0.32);
   }
   100% {
-    box-shadow: 0 0 0 10px hsl(169 63% 59% / 0);
+    box-shadow: 0 0 0 10px hsl(38 60% 50% / 0);
   }
 }
 

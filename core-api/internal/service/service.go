@@ -27,13 +27,16 @@ var bannedTerms = []string{
 	"alcohol", "beer", "wine", "gambling", "casino", "dj", "music party", "nightclub", "riba", "interest", "bank",
 }
 
-func New(repo *repository.Repository, redisClient *redis.Client, notifyTopic string, userChatTokenSecret string) *Service {
+func New(repo *repository.Repository, redisClient *redis.Client, notifyTopic string, userChatTokenSecret string, userChatTokenTTL time.Duration) *Service {
+	if userChatTokenTTL <= 0 {
+		userChatTokenTTL = 30 * 24 * time.Hour
+	}
 	return &Service{
 		repo:                repo,
 		redis:               redisClient,
 		notifyTopic:         notifyTopic,
 		userChatTokenSecret: []byte(userChatTokenSecret),
-		userChatTokenTTL:    365 * 24 * time.Hour,
+		userChatTokenTTL:    userChatTokenTTL,
 	}
 }
 

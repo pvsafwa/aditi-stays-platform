@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -16,6 +17,7 @@ type Config struct {
 	ChatNotificationChannel  string
 	AdminAPIToken            string
 	UserChatTokenSecret      string
+	UserChatTokenTTL         time.Duration
 	GlobalRateLimitPerMinute int
 	LeadRateLimitPerMinute   int
 	CORSAllowedOrigins       []string
@@ -44,6 +46,13 @@ func Load() (*Config, error) {
 	if err := requireStrongSecret("USER_CHAT_TOKEN_SECRET", userChatTokenSecret); err != nil {
 		return nil, err
 	}
+	// Lead-scoped chat tokens are short-lived; a returning customer is re-issued a
+	// fresh token through check-availability, so this only needs to outlast a single
+	// active inquiry. Default 30 days, configurable, bounded to a sane range.
+	chatTokenTTLHours, err := getEnvIntInRange("USER_CHAT_TOKEN_TTL_HOURS", 24*30, 1, 24*365)
+	if err != nil {
+		return nil, err
+	}
 	globalRate, err := getEnvIntMin("GLOBAL_RATE_LIMIT_PER_MINUTE", 120, 1)
 	if err != nil {
 		return nil, err
@@ -66,6 +75,7 @@ func Load() (*Config, error) {
 		ChatNotificationChannel:  channel,
 		AdminAPIToken:            adminToken,
 		UserChatTokenSecret:      userChatTokenSecret,
+		UserChatTokenTTL:         time.Duration(chatTokenTTLHours) * time.Hour,
 		GlobalRateLimitPerMinute: globalRate,
 		LeadRateLimitPerMinute:   leadRate,
 		CORSAllowedOrigins:       corsAllowedOrigins,
@@ -101,6 +111,18 @@ func getEnvIntMin(key string, fallback int, min int) (int, error) {
 	}
 	if v < min {
 		return 0, fmt.Errorf("%s must be >= %d", key, min)
+	}
+	return v, nil
+}
+
+func getEnvIntInRange(key string, fallback, min, max int) (int, error) {
+	raw := getEnv(key, strconv.Itoa(fallback))
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s value %q", key, raw)
+	}
+	if v < min || v > max {
+		return 0, fmt.Errorf("%s must be between %d and %d", key, min, max)
 	}
 	return v, nil
 }

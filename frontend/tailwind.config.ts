@@ -6,7 +6,7 @@ const config: Config = {
   theme: {
   	extend: {
   		colors: {
-  			base: '#081f2d',
+  			base: '#1a1611',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
@@ -15,7 +15,7 @@ const config: Config = {
   				DEFAULT: 'hsl(var(--accent))',
   				foreground: 'hsl(var(--accent-foreground))'
   			},
-  			mint: '#53d8c4',
+  			mint: '#b9842f',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			popover: {
@@ -51,14 +51,25 @@ const config: Config = {
   		},
   		fontFamily: {
   			sans: [
-  				'Plus Jakarta Sans',
-  				'Sora',
+  				'Inter',
   				'ui-sans-serif',
-  				'system-ui'
+  				'system-ui',
+  				'sans-serif'
+  			],
+  			display: [
+  				'Fraunces',
+  				'Georgia',
+  				'Times New Roman',
+  				'serif'
   			]
   		},
+  		boxShadow: {
+  			luxe: '0 30px 70px -38px rgba(60,40,25,0.50)',
+  			'luxe-sm': '0 14px 34px -22px rgba(60,40,25,0.42)',
+  			card: '0 1px 2px rgba(60,40,25,0.05), 0 16px 40px -30px rgba(60,40,25,0.55)'
+  		},
   		backgroundImage: {
-  			grid: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)'
+  			grid: 'radial-gradient(circle at 1px 1px, rgba(120,90,50,0.06) 1px, transparent 0)'
   		},
   		borderRadius: {
   			lg: 'var(--radius)',

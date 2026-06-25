@@ -857,7 +857,7 @@ export default function AdminPage() {
   if (authChecking) {
     return (
       <main className="mx-auto max-w-4xl p-6">
-        <div className="rounded-3xl border border-border/60 bg-card/70 p-6 text-sm text-muted-foreground shadow-[0_18px_46px_-36px_rgba(8,31,45,0.7)] backdrop-blur-xl">
+        <div className="rounded-3xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-card">
           Loading admin session...
         </div>
       </main>
@@ -866,42 +866,43 @@ export default function AdminPage() {
 
   if (!isAuthenticated || !session) {
     return (
-      <main className="mx-auto max-w-4xl p-6">
-        <section className="rounded-3xl border border-border/60 bg-card/80 p-6 shadow-[0_26px_60px_-44px_rgba(8,31,45,0.75)] backdrop-blur-xl">
-          <h1 className="text-2xl font-extrabold text-foreground">Admin Login</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Secure access for CRM operations.</p>
+      <main className="mx-auto flex min-h-[70vh] max-w-md items-center p-6">
+        <section className="w-full rounded-3xl border border-border bg-card p-8 shadow-luxe">
+          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-accent">Aditi Stays</p>
+          <h1 className="mt-2 text-3xl text-foreground text-balance">Admin Login</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Secure access for CRM operations.</p>
 
-          <div className="mt-4 grid gap-3">
+          <div className="mt-6 grid gap-3">
             <input
               type="password"
               value={loginApiToken}
               onChange={(e) => setLoginApiToken(e.target.value)}
               placeholder="API bearer token"
-              className="rounded-xl border border-border/60 bg-background/75 p-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-mint/40"
+              className="rounded-xl border border-input bg-background p-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
             <input
               type="password"
               value={loginChatToken}
               onChange={(e) => setLoginChatToken(e.target.value)}
               placeholder="Chat websocket token (optional if same as API token)"
-              className="rounded-xl border border-border/60 bg-background/75 p-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-mint/40"
+              className="rounded-xl border border-input bg-background p-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
             <input
               value={loginActor}
               onChange={(e) => setLoginActor(e.target.value)}
               placeholder="Actor label (audit trail)"
-              className="rounded-xl border border-border/60 bg-background/75 p-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-mint/40"
+              className="rounded-xl border border-input bg-background p-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
             <button
               onClick={() => void handleLogin()}
               disabled={loginLoading}
-              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground shadow-[0_14px_34px_-22px_rgba(248,181,0,0.85)] disabled:opacity-60"
+              className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-luxe-sm transition hover:opacity-90 disabled:opacity-60"
             >
               {loginLoading ? "Logging in..." : "Login"}
             </button>
           </div>
 
-          {loginError ? <p className="mt-3 text-sm text-rose-600">{loginError}</p> : null}
+          {loginError ? <p className="mt-4 text-sm text-destructive">{loginError}</p> : null}
         </section>
       </main>
     );
@@ -909,74 +910,73 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto max-w-[1500px] px-4 pb-10 pt-4 md:px-8 md:pt-6">
-      <header className="rounded-[28px] border border-border/60 bg-[linear-gradient(120deg,hsl(var(--mint)/0.14),transparent_45%,hsl(var(--accent)/0.15))] p-5 shadow-[0_24px_60px_-42px_rgba(8,31,45,0.72)] backdrop-blur-xl">
+      <header className="rounded-3xl border border-border bg-card p-6 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="bg-gradient-to-r from-foreground via-foreground to-mint bg-clip-text text-3xl font-black tracking-tight text-transparent">
-              Aditi Stays CRM
-            </h1>
-            <p className="text-sm text-muted-foreground">Logged in as {session.actor}</p>
+            <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-accent">Operations Console</p>
+            <h1 className="mt-1 text-3xl text-foreground text-balance">Aditi Stays CRM</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Logged in as {session.actor}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="rounded-xl border border-rose-300/70 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-500/15 dark:text-rose-300"
+            className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/10"
           >
             Logout
           </button>
         </div>
-        {uiError ? <p className="mt-2 text-xs text-rose-600">{uiError}</p> : null}
+        {uiError ? <p className="mt-2 text-xs text-destructive">{uiError}</p> : null}
       </header>
 
       <section className="mt-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Today Inquiries</p>
-          <p className="text-2xl font-bold text-foreground">{daily?.inquiries ?? 0}</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Today Inquiries</p>
+          <p className="mt-1 font-display text-3xl text-foreground">{daily?.inquiries ?? 0}</p>
         </div>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Today Bookings</p>
-          <p className="text-2xl font-bold text-foreground">{daily?.bookings ?? 0}</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Today Bookings</p>
+          <p className="mt-1 font-display text-3xl text-foreground">{daily?.bookings ?? 0}</p>
         </div>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Advance Collected</p>
-          <p className="text-2xl font-bold text-foreground">₹{summary?.total_advance_sum ?? 0}</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Advance Collected</p>
+          <p className="mt-1 font-display text-3xl text-foreground">₹{summary?.total_advance_sum ?? 0}</p>
         </div>
-        <div className="rounded-2xl border border-border/60 bg-card/70 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.7)] backdrop-blur-xl">
-          <p className="text-xs text-muted-foreground">Full Payments</p>
-          <p className="text-2xl font-bold text-foreground">₹{summary?.total_full_sum ?? 0}</p>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Full Payments</p>
+          <p className="mt-1 font-display text-3xl text-foreground">₹{summary?.total_full_sum ?? 0}</p>
         </div>
       </section>
 
       <section className="mt-6 grid gap-4 xl:grid-cols-2">
-        <div className="rounded-2xl border border-border/60 bg-card/72 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)] backdrop-blur-xl">
-          <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-foreground">Current Properties</h2>
-              <p className="text-xs text-muted-foreground">Add, edit, deactivate and upload local images.</p>
+              <h2 className="text-lg text-foreground">Current Properties</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">Add, edit, deactivate and upload local images.</p>
             </div>
-            <button onClick={openCreatePropertyModal} className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">
+            <button onClick={openCreatePropertyModal} className="rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90">
               Add Property
             </button>
           </div>
-          {propertyNotice ? <p className="mt-2 text-xs text-mint">{propertyNotice}</p> : null}
-          <div className="mt-3 max-h-[300px] space-y-2 overflow-y-auto pr-1 text-xs">
+          {propertyNotice ? <p className="mt-2 text-xs font-medium text-accent">{propertyNotice}</p> : null}
+          <div className="mt-4 max-h-[300px] space-y-2 overflow-y-auto pr-1 text-xs">
             {properties.map((property) => (
-              <div key={property.id} className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+              <div key={property.id} className="rounded-xl border border-border bg-muted/40 px-3 py-2.5 transition hover:border-border">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-semibold text-foreground">{property.id}</p>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] ${
-                      property.active ? "bg-mint/15 text-mint" : "bg-rose-500/15 text-rose-500"
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      property.active ? "bg-primary/12 text-primary" : "bg-destructive/12 text-destructive"
                     }`}
                   >
                     {property.active ? "ACTIVE" : "INACTIVE"}
                   </span>
                 </div>
-                <p className="text-muted-foreground">{property.location} · ₹{property.nightly_price}</p>
+                <p className="mt-0.5 text-muted-foreground">{property.location} · ₹{property.nightly_price}</p>
                 <div className="mt-2 flex gap-2">
-                  <button onClick={() => startEditProperty(property)} className="rounded-lg border border-border/60 px-2 py-1 text-[10px] text-foreground/85">
+                  <button onClick={() => startEditProperty(property)} className="rounded-lg border border-border px-2.5 py-1 text-[10px] font-medium text-foreground transition hover:bg-muted">
                     Edit
                   </button>
-                  <button onClick={() => void removeProperty(property.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-[10px] text-rose-600">
+                  <button onClick={() => void removeProperty(property.id)} className="rounded-lg border border-border px-2.5 py-1 text-[10px] font-medium text-destructive transition hover:bg-destructive/10">
                     Deactivate
                   </button>
                 </div>
@@ -986,11 +986,11 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border/60 bg-card/72 p-4 shadow-[0_18px_44px_-34px_rgba(8,31,45,0.68)] backdrop-blur-xl">
-          <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-foreground">Hero Videos</h2>
-              <p className="text-xs text-muted-foreground">Manage hero background video playlist for the home page.</p>
+              <h2 className="text-lg text-foreground">Hero Videos</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">Manage hero background video playlist for the home page.</p>
             </div>
             <button
               onClick={() => {
@@ -998,23 +998,23 @@ export default function AdminPage() {
                 setBannerNotice(null);
                 setBannerModalOpen(true);
               }}
-              className="rounded-xl bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
+              className="rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
             >
               Add Hero Video
             </button>
           </div>
-          {bannerNotice ? <p className="mt-2 text-xs text-mint">{bannerNotice}</p> : null}
-          <div className="mt-3 max-h-[300px] space-y-2 overflow-y-auto pr-1">
+          {bannerNotice ? <p className="mt-2 text-xs font-medium text-accent">{bannerNotice}</p> : null}
+          <div className="mt-4 max-h-[300px] space-y-2 overflow-y-auto pr-1">
             {videos.map((video) => (
-              <article key={video.id} className="overflow-hidden rounded-xl border border-border/60 bg-background/60">
+              <article key={video.id} className="overflow-hidden rounded-xl border border-border bg-muted/40 transition hover:border-border">
                 <img
                   src={video.cover_url || "https://images.unsplash.com/photo-1527631746610-bca00a040d60"}
                   alt={video.title}
                   className="h-28 w-full object-cover"
                 />
                 <div className="p-3">
-                  <p className="text-xs text-mint">{video.platform}</p>
-                  <p className="line-clamp-1 text-sm font-semibold text-foreground">{video.title}</p>
+                  <p className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-accent">{video.platform}</p>
+                  <p className="mt-0.5 line-clamp-1 text-sm font-semibold text-foreground">{video.title}</p>
                   {video.metadata?.quality ? (
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {String(video.metadata.quality)} · {String(video.metadata.bitrate_kbps || "")} kbps
@@ -1025,14 +1025,14 @@ export default function AdminPage() {
                       href={video.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85"
+                      className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted"
                     >
                       Open
                     </a>
-                    <button onClick={() => startEditBanner(video)} className="rounded-lg border border-border/60 px-2 py-1 text-xs text-foreground/85">
+                    <button onClick={() => startEditBanner(video)} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-foreground transition hover:bg-muted">
                       Edit
                     </button>
-                    <button onClick={() => removeVideoBanner(video.id)} className="rounded-lg border border-rose-300/70 px-2 py-1 text-xs text-rose-600">
+                    <button onClick={() => removeVideoBanner(video.id)} className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/10">
                       Remove
                     </button>
                   </div>
@@ -1045,52 +1045,52 @@ export default function AdminPage() {
       </section>
 
       {propertyModalOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-card/80 p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(26,22,17,0.55)] p-4 backdrop-blur-sm">
+          <div className="w-full max-w-4xl rounded-3xl border border-border bg-card p-6 shadow-luxe">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-foreground">{editingPropertyId ? `Edit ${editingPropertyId}` : "Add Property"}</h3>
+              <h3 className="text-lg text-foreground">{editingPropertyId ? `Edit ${editingPropertyId}` : "Add Property"}</h3>
               <button
                 onClick={() => {
                   setPropertyModalOpen(false);
                   setEditingPropertyId(null);
                   setPropertyForm(defaultPropertyForm);
                 }}
-                className="rounded-lg border border-border/60 px-3 py-1 text-xs text-foreground/85"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
               >
                 Close
               </button>
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="mt-4 grid gap-2.5 md:grid-cols-2">
               <input
                 value={propertyForm.id}
                 onChange={(e) => updatePropertyForm("id", e.target.value)}
                 placeholder="ID (e.g., AD-Kodaikanal-04)"
                 disabled={Boolean(editingPropertyId)}
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85"
+                className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
               />
               <input
                 value={propertyForm.location}
                 onChange={(e) => updatePropertyForm("location", e.target.value)}
                 placeholder="Location"
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85"
+                className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
               />
               <input
                 type="number"
                 value={propertyForm.nightly_price}
                 onChange={(e) => updatePropertyForm("nightly_price", e.target.value)}
                 placeholder="Nightly price"
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85"
+                className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
               />
               <input
                 value={propertyForm.hero_image}
                 onChange={(e) => updatePropertyForm("hero_image", e.target.value)}
                 placeholder="Hero image URL"
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85"
+                className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
 
-            <div className="mt-2 grid gap-2 md:grid-cols-2">
-              <label className="rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+            <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
+              <label className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 Upload Hero Image
                 <input
                   type="file"
@@ -1102,7 +1102,7 @@ export default function AdminPage() {
                   }}
                 />
               </label>
-              <label className="rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+              <label className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 Upload Gallery Images
                 <input
                   type="file"
@@ -1121,26 +1121,26 @@ export default function AdminPage() {
               value={propertyForm.amenities}
               onChange={(e) => updatePropertyForm("amenities", e.target.value)}
               placeholder="Amenities (comma/newline separated)"
-              className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+              className="mt-2.5 h-20 w-full rounded-xl border border-input bg-background p-2.5 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
             <textarea
               value={propertyForm.media}
               onChange={(e) => updatePropertyForm("media", e.target.value)}
               placeholder="Media image URLs (comma/newline separated)"
-              className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+              className="mt-2.5 h-20 w-full rounded-xl border border-input bg-background p-2.5 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
             {parsedMedia.length > 0 ? (
-              <div className="mt-2 max-h-28 overflow-y-auto rounded-lg border border-border/60 bg-background/60 p-2">
+              <div className="mt-2.5 max-h-28 overflow-y-auto rounded-xl border border-border bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
                   {parsedMedia.map((url) => (
-                    <div key={url} className="group relative overflow-hidden rounded-lg border border-slate-200 bg-card/80 p-1">
+                    <div key={url} className="group relative overflow-hidden rounded-lg border border-border bg-card p-1">
                       <img src={url} alt="Media" className="h-14 w-14 object-cover" />
                       <button
                         onClick={() => {
                           const next = parsedMedia.filter((item) => item !== url);
                           updatePropertyForm("media", next.join("\n"));
                         }}
-                        className="absolute right-1 top-1 hidden rounded bg-card/90 px-1 text-[10px] text-rose-600 group-hover:block"
+                        className="absolute right-1 top-1 hidden rounded bg-card/90 px-1 text-[10px] text-destructive group-hover:block"
                       >
                         x
                       </button>
@@ -1153,10 +1153,10 @@ export default function AdminPage() {
               value={propertyForm.description}
               onChange={(e) => updatePropertyForm("description", e.target.value)}
               placeholder="Description"
-              className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+              className="mt-2.5 h-20 w-full rounded-xl border border-input bg-background p-2.5 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
 
-            <label className="mt-2 flex items-center gap-2 text-xs text-foreground/85">
+            <label className="mt-2.5 flex items-center gap-2 text-xs text-foreground">
               <input
                 type="checkbox"
                 checked={propertyForm.family_friendly}
@@ -1165,11 +1165,11 @@ export default function AdminPage() {
               Family friendly
             </label>
 
-            <div className="mt-3 flex gap-2">
+            <div className="mt-4 flex gap-2">
               <button
                 onClick={() => void createProperty()}
                 disabled={propertySaving || propertyUploadBusy}
-                className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
+                className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
               >
                 {propertySaving ? "Saving..." : propertyUploadBusy ? "Uploading..." : editingPropertyId ? `Save ${editingPropertyId}` : "Save Property"}
               </button>
@@ -1179,7 +1179,7 @@ export default function AdminPage() {
                   setEditingPropertyId(null);
                   setPropertyForm(defaultPropertyForm);
                 }}
-                className="rounded-lg border border-border/60 px-3 py-2 text-xs text-foreground/85"
+                className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-foreground transition hover:bg-muted"
               >
                 Cancel
               </button>
@@ -1189,25 +1189,25 @@ export default function AdminPage() {
       ) : null}
 
       {bannerModalOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-card/80 p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(26,22,17,0.55)] p-4 backdrop-blur-sm">
+          <div className="w-full max-w-3xl rounded-3xl border border-border bg-card p-6 shadow-luxe">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-foreground">{editingBannerId ? `Edit Hero Video #${editingBannerId}` : "Add Hero Video"}</h3>
+              <h3 className="text-lg text-foreground">{editingBannerId ? `Edit Hero Video #${editingBannerId}` : "Add Hero Video"}</h3>
               <button
                 onClick={() => {
                   setBannerModalOpen(false);
                   resetBannerForm();
                 }}
-                className="rounded-lg border border-border/60 px-3 py-1 text-xs text-foreground/85"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
               >
                 Close
               </button>
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="mt-4 grid gap-2.5 md:grid-cols-2">
               <select
                 value={bannerSourceMode}
                 onChange={(e) => setBannerSourceMode(e.target.value as BannerSourceMode)}
-                className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85 md:col-span-2"
+                className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring md:col-span-2"
               >
                 <option value="link">Video URL</option>
                 <option value="local_upload">Upload Local Video</option>
@@ -1217,11 +1217,11 @@ export default function AdminPage() {
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
                   placeholder="https://cdn.example.com/hero-video.mp4"
-                  className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85 md:col-span-2"
+                  className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring md:col-span-2"
                 />
               ) : (
                 <>
-                  <label className="rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                  <label className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     Select local video
                     <input
                       type="file"
@@ -1233,7 +1233,7 @@ export default function AdminPage() {
                   <select
                     value={bannerQuality}
                     onChange={(e) => setBannerQuality(e.target.value)}
-                    className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85"
+                    className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="1080p">1080p</option>
                     <option value="720p">720p</option>
@@ -1242,7 +1242,7 @@ export default function AdminPage() {
                   <select
                     value={bannerBitrate}
                     onChange={(e) => setBannerBitrate(e.target.value)}
-                    className="rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-xs text-foreground/85"
+                    className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <option value="8000">8000 kbps</option>
                     <option value="6000">6000 kbps</option>
@@ -1253,11 +1253,11 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="mt-3 flex gap-2">
+            <div className="mt-4 flex gap-2">
               <button
                 onClick={() => void addVideoBanner()}
                 disabled={bannerSaving}
-                className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
+                className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
               >
                 {bannerSaving ? "Saving..." : editingBannerId ? "Update Hero Video" : "Save Hero Video"}
               </button>
@@ -1266,7 +1266,7 @@ export default function AdminPage() {
                   setBannerModalOpen(false);
                   resetBannerForm();
                 }}
-                className="rounded-lg border border-border/60 px-3 py-2 text-xs text-foreground/85"
+                className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-foreground transition hover:bg-muted"
               >
                 Cancel
               </button>
@@ -1276,36 +1276,36 @@ export default function AdminPage() {
       ) : null}
 
       <section className="mt-6 grid gap-4 xl:grid-cols-[360px_1fr]">
-        <aside className="rounded-2xl border border-border/60 bg-card/74 p-4 shadow-[0_18px_46px_-34px_rgba(8,31,45,0.72)] backdrop-blur-xl">
-          <h2 className="font-bold text-foreground">Conversation Inbox</h2>
-          <p className="text-xs text-muted-foreground">Ongoing and completed threads in one place.</p>
+        <aside className="rounded-2xl border border-border bg-card p-5 shadow-card">
+          <h2 className="text-lg text-foreground">Conversation Inbox</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Ongoing and completed threads in one place.</p>
           <input
             value={leadSearch}
             onChange={(e) => setLeadSearch(e.target.value)}
             placeholder="Search id/name/mobile/property/message"
-            className="mt-2 w-full rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-mint/40"
+            className="mt-3 w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <div className="mt-2 flex gap-2 text-xs">
+          <div className="mt-2.5 flex gap-2 text-xs">
             <button
               onClick={() => setLeadFilterMode("all")}
-              className={`rounded-full border px-3 py-1 ${
-                leadFilterMode === "all" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+              className={`rounded-full border px-3 py-1 font-medium transition ${
+                leadFilterMode === "all" ? "border-primary/40 bg-primary/12 text-primary" : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
               All ({leadCounts.all})
             </button>
             <button
               onClick={() => setLeadFilterMode("open")}
-              className={`rounded-full border px-3 py-1 ${
-                leadFilterMode === "open" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+              className={`rounded-full border px-3 py-1 font-medium transition ${
+                leadFilterMode === "open" ? "border-primary/40 bg-primary/12 text-primary" : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
               Open ({leadCounts.open})
             </button>
             <button
               onClick={() => setLeadFilterMode("closed")}
-              className={`rounded-full border px-3 py-1 ${
-                leadFilterMode === "closed" ? "border-mint/65 bg-mint/10 text-mint" : "border-border/65 text-muted-foreground"
+              className={`rounded-full border px-3 py-1 font-medium transition ${
+                leadFilterMode === "closed" ? "border-primary/40 bg-primary/12 text-primary" : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
               Closed ({leadCounts.closed})
@@ -1323,8 +1323,8 @@ export default function AdminPage() {
                 }}
                 className={`w-full rounded-2xl border px-3 py-2.5 text-left text-sm transition ${
                   selectedLeadId === lead.id
-                    ? "border-mint/70 bg-mint/10 shadow-[0_12px_28px_-24px_rgba(83,216,196,0.85)]"
-                    : "border-border/60 bg-background/55 hover:border-mint/40 hover:bg-mint/5"
+                    ? "border-primary/50 bg-primary/8 shadow-card"
+                    : "border-border bg-muted/30 hover:border-primary/30 hover:bg-muted/60"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1338,10 +1338,10 @@ export default function AdminPage() {
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                   {lead.last_message ? `${lead.last_sender_role || "System"}: ${lead.last_message}` : "No chat messages yet."}
                 </p>
-                <div className="mt-1">
+                <div className="mt-1.5">
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] ${
-                      openStatuses.has(lead.status.toUpperCase()) ? "bg-mint/15 text-mint" : "bg-background/80 text-muted-foreground"
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      openStatuses.has(lead.status.toUpperCase()) ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {lead.status}
@@ -1350,7 +1350,7 @@ export default function AdminPage() {
               </button>
             ))}
             {selectedLeadId && !filteredLeads.some((lead) => lead.id === selectedLeadId) ? (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-foreground">
                 Lead #{selectedLeadId} is outside current filter. Adjust filter to view it in inbox.
               </div>
             ) : null}
@@ -1358,43 +1358,43 @@ export default function AdminPage() {
           </div>
         </aside>
 
-        <section className="rounded-2xl border border-border/60 bg-card/74 p-4 shadow-[0_18px_46px_-34px_rgba(8,31,45,0.72)] backdrop-blur-xl">
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-card">
           {selectedLeadId ? (
             <div className="h-[calc(100vh-265px)] min-h-[540px] max-h-[760px] overflow-y-auto pr-1">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h2 className="font-bold text-foreground">Lead #{selectedLeadId}</h2>
-                  <p className="text-xs text-muted-foreground">Operations panel is fixed here. Live chat opens at bottom-right.</p>
+                  <h2 className="text-lg text-foreground">Lead #{selectedLeadId}</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Operations panel is fixed here. Live chat opens at bottom-right.</p>
                 </div>
-                <span className="rounded-full border border-border/65 bg-background/65 px-3 py-1 text-xs text-foreground/80">
+                <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground">
                   {selectedLead?.status || context?.lead?.status || "NEW_INQUIRY"}
                 </span>
               </div>
 
               <div className="space-y-3 pb-2">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Lead</p>
-                    <p className="mt-1 font-semibold text-foreground">{context?.lead?.customer_name || selectedLead?.customer_name || "-"}</p>
+                  <div className="rounded-xl border border-border bg-muted/40 p-3.5 text-sm">
+                    <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Lead</p>
+                    <p className="mt-1.5 font-semibold text-foreground">{context?.lead?.customer_name || selectedLead?.customer_name || "-"}</p>
                     <p className="text-muted-foreground">{context?.lead?.mobile_number || selectedLead?.mobile_number || "-"}</p>
                     <p className="mt-1 text-muted-foreground">Property: {context?.lead?.property_id || selectedLead?.property_id || "-"}</p>
                     <p className="text-muted-foreground">Status: {context?.lead?.status || selectedLead?.status || "-"}</p>
                   </div>
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3 text-sm">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Payments</p>
-                    <p className="mt-1 text-foreground/85">Advance: {asMoney(paymentSummary.advance_total)}</p>
-                    <p className="text-foreground/85">Full: {asMoney(paymentSummary.full_total)}</p>
-                    <p className="text-foreground/85">Total: {asMoney(paymentSummary.total)}</p>
-                    <p className="text-foreground/85">Entries: {Number(paymentSummary.count || 0)}</p>
+                  <div className="rounded-xl border border-border bg-muted/40 p-3.5 text-sm">
+                    <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Payments</p>
+                    <p className="mt-1.5 text-foreground">Advance: {asMoney(paymentSummary.advance_total)}</p>
+                    <p className="text-foreground">Full: {asMoney(paymentSummary.full_total)}</p>
+                    <p className="text-foreground">Total: {asMoney(paymentSummary.total)}</p>
+                    <p className="text-foreground">Entries: {Number(paymentSummary.count || 0)}</p>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                   <p className="text-sm font-semibold text-foreground">Pre-Chat Intelligence</p>
                   <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Browsing History</p>
-                      <ul className="mt-1 space-y-1 text-sm text-foreground/85">
+                      <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Browsing History</p>
+                      <ul className="mt-1.5 space-y-1 text-sm text-foreground">
                         {(context?.browsing_history || []).length === 0 ? <li className="text-muted-foreground">No browsing records.</li> : null}
                         {(context?.browsing_history || []).map((it, idx) => (
                           <li key={`${it.property_id}-${idx}`}>
@@ -1404,8 +1404,8 @@ export default function AdminPage() {
                       </ul>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Wishlist</p>
-                      <ul className="mt-1 space-y-1 text-sm text-foreground/85">
+                      <p className="text-[0.7rem] uppercase tracking-[0.18em] text-muted-foreground">Wishlist</p>
+                      <ul className="mt-1.5 space-y-1 text-sm text-foreground">
                         {(context?.wishlist || []).length === 0 ? <li className="text-muted-foreground">No wishlist items.</li> : null}
                         {(context?.wishlist || []).map((it) => (
                           <li key={it.id}>{it.id}</li>
@@ -1416,19 +1416,19 @@ export default function AdminPage() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                  <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                     <p className="text-sm font-semibold text-foreground">Share GPay in Chat</p>
-                    {gpayNotice ? <p className="mt-2 text-xs text-mint">{gpayNotice}</p> : null}
+                    {gpayNotice ? <p className="mt-2 text-xs font-medium text-accent">{gpayNotice}</p> : null}
                     {qrUrl ? (
                       <img
                         src={qrUrl}
                         alt="GPay QR"
-                        className="mt-2 h-28 w-28 rounded-xl border border-border/60 object-cover"
+                        className="mt-2 h-28 w-28 rounded-xl border border-border object-cover"
                       />
                     ) : (
                       <p className="mt-2 text-xs text-muted-foreground">No QR uploaded.</p>
                     )}
-                    <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-border/60 bg-card/70 px-3 py-2 text-xs text-foreground/85">
+                    <label className="mt-2 inline-flex cursor-pointer items-center rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition hover:bg-muted">
                       {gpayUploadBusy ? "Uploading..." : qrUrl ? "Replace QR Image" : "Upload QR Image"}
                       <input
                         type="file"
@@ -1445,7 +1445,7 @@ export default function AdminPage() {
                     {qrUrl ? (
                       <button
                         onClick={removeGpayQrImage}
-                        className="mt-2 block rounded-lg border border-rose-300/70 px-3 py-2 text-xs text-rose-600"
+                        className="mt-2 block rounded-lg border border-border px-3 py-2 text-xs font-medium text-destructive transition hover:bg-destructive/10"
                       >
                         Remove QR Image
                       </button>
@@ -1454,94 +1454,94 @@ export default function AdminPage() {
                       value={gpayNumber}
                       onChange={(e) => setGpayNumber(e.target.value)}
                       placeholder="GPay mobile"
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+                      className="mt-2 w-full rounded-lg border border-input bg-background p-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                     />
                     <button
                       onClick={() => void runShareGpay()}
                       disabled={gpayUploadBusy}
-                      className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-60"
+                      className="mt-2 rounded-lg bg-accent px-3.5 py-2 text-xs font-semibold text-accent-foreground transition hover:opacity-90 disabled:opacity-60"
                     >
                       Send GPay Details
                     </button>
                   </div>
 
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                  <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                     <p className="text-sm font-semibold text-foreground">Inventory Check</p>
                     <textarea
                       value={inventoryNote}
                       onChange={(e) => setInventoryNote(e.target.value)}
-                      className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      className="mt-2 h-20 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                     />
                     <div className="mt-2 flex gap-2">
-                      <button onClick={() => void runInventory(true)} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
+                      <button onClick={() => void runInventory(true)} className="rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90">
                         Available
                       </button>
-                      <button onClick={() => void runInventory(false)} className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white">
+                      <button onClick={() => void runInventory(false)} className="rounded-lg border border-destructive/40 bg-destructive/10 px-3.5 py-2 text-xs font-semibold text-destructive transition hover:bg-destructive/15">
                         Not Available
                       </button>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                  <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                     <p className="text-sm font-semibold text-foreground">Payment Entry</p>
                     <input
                       type="number"
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      className="mt-2 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                     />
                     <select
                       value={paymentType}
                       onChange={(e) => setPaymentType(e.target.value as "ADVANCE" | "FULL")}
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      className="mt-2 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <option value="ADVANCE">ADVANCE</option>
                       <option value="FULL">FULL</option>
                     </select>
-                    <button onClick={() => void runAddPayment()} className="mt-2 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white">
+                    <button onClick={() => void runAddPayment()} className="mt-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90">
                       Save Payment
                     </button>
                   </div>
 
-                  <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                  <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                     <p className="text-sm font-semibold text-foreground">Confirmation + WhatsApp</p>
                     <textarea
                       value={confirmDetails}
                       onChange={(e) => setConfirmDetails(e.target.value)}
-                      className="mt-2 h-20 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+                      className="mt-2 h-20 w-full rounded-lg border border-input bg-background p-2 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                     />
                     <input
                       value={whatsapp}
                       onChange={(e) => setWhatsapp(e.target.value)}
                       placeholder="WhatsApp Number"
-                      className="mt-2 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-xs text-foreground/85"
+                      className="mt-2 w-full rounded-lg border border-input bg-background p-2 text-xs text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
                     />
-                    <button onClick={() => void runConfirm()} className="mt-2 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900">
+                    <button onClick={() => void runConfirm()} className="mt-2 rounded-lg bg-accent px-3.5 py-2 text-xs font-semibold text-accent-foreground transition hover:opacity-90">
                       Send Confirmed Status
                     </button>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                   <p className="text-sm font-semibold text-foreground">Payment Ledger</p>
                   <div className="mt-2 max-h-36 space-y-2 overflow-y-auto text-xs">
                     {paymentRows.length === 0 ? <p className="text-muted-foreground">No payment entries for this lead.</p> : null}
                     {paymentRows.map((row) => (
-                      <div key={row.id} className="rounded-lg border border-slate-200 bg-card/80 p-2 text-foreground/85">
+                      <div key={row.id} className="rounded-lg border border-border bg-card p-2 text-foreground">
                         {row.payment_type} · {asMoney(row.amount)} · {row.created_at ? new Date(row.created_at).toLocaleString() : ""}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border/60 bg-background/60 p-3">
+                <div className="rounded-xl border border-border bg-muted/40 p-3.5">
                   <p className="text-sm font-semibold text-foreground">Recorded Chat History</p>
                   <div className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs">
                     {chatHistory.length === 0 ? <p className="text-muted-foreground">No recorded messages yet.</p> : null}
                     {chatHistory.map((m, idx) => (
-                      <div key={`${idx}-${m.created_at || idx}`} className="rounded-lg border border-slate-200 bg-card/80 p-2">
-                        <p className="text-teal-700">{m.sender_label || m.sender_role || "System"}</p>
-                        <p className="text-foreground/85">{m.content || "-"}</p>
+                      <div key={`${idx}-${m.created_at || idx}`} className="rounded-lg border border-border bg-card p-2">
+                        <p className="font-medium text-accent">{m.sender_label || m.sender_role || "System"}</p>
+                        <p className="text-foreground">{m.content || "-"}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {m.message_type || "TEXT"} · {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
                         </p>
@@ -1552,7 +1552,7 @@ export default function AdminPage() {
               </div>
             </div>
           ) : (
-            <div className="flex h-[calc(100vh-265px)] min-h-[500px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/70 text-sm text-muted-foreground">
+            <div className="flex h-[calc(100vh-265px)] min-h-[500px] items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center text-sm text-muted-foreground">
               Select a lead from inbox to open operations and docked chat.
             </div>
           )}
@@ -1560,18 +1560,18 @@ export default function AdminPage() {
       </section>
 
       {selectedLeadId && adminChatEnabled && !adminChatVisible ? (
-        <div className="fixed bottom-2 right-2 z-50 flex items-center gap-2 rounded-full border border-border/60 bg-card/90 px-2 py-2 shadow-xl backdrop-blur md:bottom-4 md:right-4">
+        <div className="fixed bottom-2 right-2 z-50 flex items-center gap-2 rounded-full border border-border bg-card px-2 py-2 shadow-luxe md:bottom-4 md:right-4">
           <button
             onClick={() => {
               setAdminChatEnabled(true);
               setAdminChatVisible(true);
               setAdminChatUnread(0);
             }}
-            className="relative rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"
+            className="relative rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90"
           >
             Open Chat
             {adminChatUnread > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-mint px-1 text-[10px] font-bold text-slate-900">
+              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">
                 {adminChatUnread > 99 ? "99+" : adminChatUnread}
               </span>
             ) : null}
@@ -1582,7 +1582,7 @@ export default function AdminPage() {
               setAdminChatVisible(false);
               setAdminChatUnread(0);
             }}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-foreground/85 hover:bg-background"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-muted"
             aria-label="Close lead chat"
           >
             <X className="h-4 w-4" />
@@ -1596,10 +1596,10 @@ export default function AdminPage() {
             adminChatVisible ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-3 opacity-0 pointer-events-none"
           }`}
         >
-          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-luxe">
+            <div className="flex items-center justify-between border-b border-border bg-muted/50 px-3 py-2.5">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-teal-700">Lead Chat</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">Lead Chat</p>
                 <p className="text-xs font-semibold text-foreground">
                   #{selectedLeadId} · {selectedLead?.property_id || context?.lead?.property_id || "Property"}
                 </p>
@@ -1607,7 +1607,7 @@ export default function AdminPage() {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setAdminChatVisible(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground transition hover:bg-muted"
                   aria-label="Minimize chat"
                 >
                   <Minimize2 className="h-4 w-4" />
@@ -1618,7 +1618,7 @@ export default function AdminPage() {
                     setAdminChatEnabled(false);
                     setAdminChatUnread(0);
                   }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-foreground transition hover:bg-muted"
                   aria-label="Close chat"
                 >
                   <X className="h-4 w-4" />

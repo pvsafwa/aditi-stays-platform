@@ -10,7 +10,6 @@
 # Env
 .env
 .env.*
-!.env.example
 
 # Node
 node_modules/
@@ -41,18 +40,11 @@ coverage.out
 chat-service/uploads/*
 !chat-service/uploads/.gitkeep
 
-# Terraform
-*.tfstate
-*.tfstate.*
-.terraform/
-infra/terraform/k3s-key.pem
+# Secrets / keys
 *.pem
 
 # Logs
 *.log
-
-# Generated secrets
-infra/k8s/base/secrets.generated.yaml
 
 # Local documentation screenshots
 docs/User Engagement and Lead-*.png

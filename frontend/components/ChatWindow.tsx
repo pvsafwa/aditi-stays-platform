@@ -331,29 +331,29 @@ export default function ChatWindow({
 
   const quickActionClass = (tone: "neutral" | "mint" | "danger" | "accent" = "neutral") => {
     if (tone === "mint") {
-      return "border-mint/50 bg-mint/10 text-mint hover:bg-mint/18";
+      return "border-mint/50 bg-mint/10 text-mint hover:bg-mint/[0.18]";
     }
     if (tone === "danger") {
-      return "border-rose-300/70 bg-rose-500/10 text-rose-600 hover:bg-rose-500/15";
+      return "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15";
     }
     if (tone === "accent") {
-      return "border-accent/60 bg-accent/14 text-accent hover:bg-accent/20";
+      return "border-accent/60 bg-accent/[0.14] text-accent hover:bg-accent/20";
     }
-    return "border-border/60 bg-background/70 text-foreground/85 hover:border-mint/45 hover:text-mint";
+    return "border-border bg-secondary/60 text-foreground/85 hover:border-primary/45 hover:text-primary";
   };
 
   return (
     <div
-      className={`overflow-hidden rounded-[22px] border border-border/60 bg-card/74 shadow-[0_26px_64px_-46px_rgba(8,31,45,0.82)] backdrop-blur-xl ${
+      className={`overflow-hidden rounded-3xl border border-border bg-card/80 shadow-luxe backdrop-blur-xl ${
         fillHeight ? "flex h-full min-h-0 flex-col" : ""
       }`}
     >
-      <div className="flex items-center justify-between border-b border-border/60 bg-[linear-gradient(90deg,hsl(var(--mint)/0.12),transparent_36%,hsl(var(--accent)/0.12))] px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border bg-[linear-gradient(90deg,hsl(var(--mint)/0.12),transparent_36%,hsl(var(--accent)/0.12))] px-4 py-3.5">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-mint">Recorded Conversation</p>
-          <h3 className="text-sm font-semibold text-foreground">{hideLeadId ? "Live Chat" : `Lead #${leadId}`}</h3>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-accent">Recorded Conversation</p>
+          <h3 className="font-display text-base font-semibold text-foreground">{hideLeadId ? "Live Chat" : `Lead #${leadId}`}</h3>
         </div>
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] ${connected ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-300" : "bg-rose-500/12 text-rose-600 dark:text-rose-300"}`}>
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${connected ? "bg-mint/[0.14] text-mint" : "bg-destructive/12 text-destructive"}`}>
           {connected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
           {connected ? "Connected" : "Disconnected"}
         </span>
@@ -362,7 +362,7 @@ export default function ChatWindow({
       <div
         ref={listRef}
         onScroll={handleListScroll}
-        className={`relative overflow-y-auto bg-[radial-gradient(circle_at_top,hsl(var(--mint)/0.09),transparent_46%),radial-gradient(circle_at_bottom,hsl(var(--accent)/0.08),transparent_45%)] p-4 ${
+        className={`relative overflow-y-auto bg-[radial-gradient(circle_at_top,hsl(var(--mint)/0.08),transparent_46%),radial-gradient(circle_at_bottom,hsl(var(--accent)/0.07),transparent_45%)] p-4 ${
           fillHeight ? "min-h-0 flex-1" : "h-80"
         }`}
       >
@@ -377,19 +377,19 @@ export default function ChatWindow({
             return (
               <div key={`${idx}-${m.created_at}`} className={`w-full ${ownMessage ? "text-right" : "text-left"}`}>
                 <div
-                  className={`inline-block max-w-[90%] rounded-2xl px-3.5 py-2.5 text-left shadow-[0_10px_28px_-22px_rgba(8,31,45,0.62)] ${
+                  className={`inline-block max-w-[90%] rounded-2xl px-3.5 py-2.5 text-left shadow-luxe-sm ${
                     ownMessage
-                      ? "rounded-br-md bg-accent/95 text-accent-foreground"
-                      : "rounded-bl-md border border-border/55 bg-background/90 text-foreground"
+                      ? "rounded-br-md bg-primary text-primary-foreground"
+                      : "rounded-bl-md border border-border bg-secondary text-secondary-foreground"
                   }`}
                 >
-                  <p className={`text-[10px] ${ownMessage ? "text-accent-foreground/75" : "text-muted-foreground"}`}>{m.sender_label || "System"}</p>
+                  <p className={`text-[10px] uppercase tracking-[0.14em] ${ownMessage ? "text-primary-foreground/75" : "text-muted-foreground"}`}>{m.sender_label || "System"}</p>
                   <p className="mt-0.5 text-sm leading-relaxed">{m.content}</p>
                   {previewableImageUrl ? (
                     <button
                       type="button"
                       onClick={() => setPreviewImageUrl(previewableImageUrl)}
-                      className="mt-2 block overflow-hidden rounded-xl border border-border/50"
+                      className={`mt-2 block overflow-hidden rounded-xl border ${ownMessage ? "border-primary-foreground/30" : "border-border"}`}
                     >
                       <img src={previewableImageUrl} alt="Chat attachment" className="h-28 w-28 object-cover" loading="lazy" decoding="async" />
                     </button>
@@ -406,7 +406,7 @@ export default function ChatWindow({
           <Button
             onClick={jumpToLatest}
             variant="outline"
-            className="h-8 rounded-full border-mint/45 bg-mint/10 px-3 text-xs text-mint hover:bg-mint/18"
+            className="h-8 rounded-full border-accent/50 bg-accent/[0.12] px-3 text-xs font-medium text-accent transition hover:bg-accent/20"
           >
             {unreadCount} new message(s) · Jump to latest
           </Button>
@@ -414,20 +414,20 @@ export default function ChatWindow({
       ) : null}
 
       {showUnavailablePrompt ? (
-        <div className="mx-4 mt-3 rounded-2xl border border-amber-300/55 bg-amber-100/55 p-3 dark:bg-amber-500/10">
+        <div className="mx-4 mt-3 rounded-2xl border border-accent/40 bg-accent/[0.10] p-3 shadow-luxe-sm">
           <p className="text-xs text-foreground">This stay seems unavailable. Want to check another date or another property?</p>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          <div className="mt-2.5 flex flex-wrap gap-2 text-xs">
             <Button
               onClick={() => setAlternativeMode("date")}
               variant="outline"
-              className="h-8 rounded-full border-border/60 px-3 text-xs"
+              className="h-8 rounded-full border-border bg-background/70 px-3 text-xs transition hover:border-primary/45 hover:text-primary"
             >
               Check Different Dates
             </Button>
             <Button
               onClick={() => setAlternativeMode("property")}
               variant="outline"
-              className="h-8 rounded-full border-border/60 px-3 text-xs"
+              className="h-8 rounded-full border-border bg-background/70 px-3 text-xs transition hover:border-primary/45 hover:text-primary"
             >
               Choose Another Property
             </Button>
@@ -437,7 +437,7 @@ export default function ChatWindow({
               {alternativeMode === "property" ? (
                 <div className="md:col-span-2">
                   <Select value={alternativePropertyId || "__none__"} onValueChange={(value) => setAlternativePropertyId(value === "__none__" ? "" : value)}>
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10 rounded-xl border-input bg-background">
                       <SelectValue placeholder="Select property" />
                     </SelectTrigger>
                     <SelectContent>
@@ -451,32 +451,32 @@ export default function ChatWindow({
                   </Select>
                 </div>
               ) : null}
-              <label className="space-y-1 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5" />
+              <label className="space-y-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 text-accent" />
                   From Date
                 </span>
-                <Input type="date" value={alternativeFromDate} onChange={(e) => setAlternativeFromDate(e.target.value)} className="h-10 text-xs" />
+                <Input type="date" value={alternativeFromDate} onChange={(e) => setAlternativeFromDate(e.target.value)} className="h-10 rounded-xl border-input bg-background text-xs focus-visible:ring-2 focus-visible:ring-ring" />
               </label>
-              <label className="space-y-1 text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <CalendarDays className="h-3.5 w-3.5" />
+              <label className="space-y-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 text-accent" />
                   Till Date
                 </span>
-                <Input type="date" value={alternativeToDate} onChange={(e) => setAlternativeToDate(e.target.value)} className="h-10 text-xs" />
+                <Input type="date" value={alternativeToDate} onChange={(e) => setAlternativeToDate(e.target.value)} className="h-10 rounded-xl border-input bg-background text-xs focus-visible:ring-2 focus-visible:ring-ring" />
               </label>
               <Input
                 type="number"
                 min={1}
                 value={alternativeMembers}
                 onChange={(e) => setAlternativeMembers(Number(e.target.value) || 1)}
-                className="h-10 text-xs md:col-span-2"
+                className="h-10 rounded-xl border-input bg-background text-xs focus-visible:ring-2 focus-visible:ring-ring md:col-span-2"
                 placeholder="Members"
               />
-              <Button onClick={sendAlternativeRequest} className="h-10 rounded-xl bg-mint text-black hover:bg-mint/90">
+              <Button onClick={sendAlternativeRequest} className="h-10 rounded-xl bg-primary text-primary-foreground transition hover:brightness-105">
                 Send Request
               </Button>
-              <Button onClick={() => setAlternativeMode("none")} variant="outline" className="h-10 rounded-xl">
+              <Button onClick={() => setAlternativeMode("none")} variant="outline" className="h-10 rounded-xl border-border transition hover:bg-secondary">
                 Cancel
               </Button>
             </div>
@@ -484,7 +484,7 @@ export default function ChatWindow({
         </div>
       ) : null}
 
-      <div className="border-t border-border/50 bg-background/76 p-3 backdrop-blur-md">
+      <div className="border-t border-border bg-background/80 p-3 backdrop-blur-md">
         {hasQuickActions ? (
           <div className="mb-2 flex flex-wrap gap-2">
             {quickActions.map((action) => (
@@ -512,9 +512,9 @@ export default function ChatWindow({
               }
             }}
             placeholder="Type your message..."
-            className="h-11 flex-1 rounded-xl border-border/70 bg-background"
+            className="h-11 flex-1 rounded-xl border-input bg-background focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <Button onClick={sendMessage} className="h-11 rounded-xl bg-accent px-4 text-accent-foreground hover:brightness-105">
+          <Button onClick={sendMessage} className="h-11 gap-1.5 rounded-xl bg-primary px-4 text-primary-foreground transition hover:brightness-105">
             <MessageCircleMore className="h-4 w-4" />
             Send
           </Button>
@@ -522,7 +522,7 @@ export default function ChatWindow({
 
         {showProofUpload ? (
           <div className="mt-2">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border/60 px-3 py-1.5 text-xs text-foreground/85 transition hover:border-mint/45 hover:text-mint">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs text-foreground/85 transition hover:border-accent/50 hover:bg-accent/[0.10] hover:text-accent">
               <UploadCloud className="h-3.5 w-3.5" />
               Upload payment screenshot
               <input
@@ -539,14 +539,14 @@ export default function ChatWindow({
           </div>
         ) : null}
 
-        {error ? <p className="mt-2 text-xs text-rose-500">{error}</p> : null}
+        {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
       </div>
 
       {previewImageUrl ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/90 p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(26,22,17,0.92)] p-4 backdrop-blur-sm">
           <button
             onClick={() => setPreviewImageUrl(null)}
-            className="absolute right-4 top-4 rounded-lg border border-accent/70 bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground"
+            className="absolute right-4 top-4 rounded-lg border border-accent/70 bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground transition hover:brightness-105"
           >
             Close
           </button>

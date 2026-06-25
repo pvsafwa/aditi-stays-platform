@@ -1,6 +1,6 @@
 "use client";
 
-import { Minimize2, X } from "lucide-react";
+import { Minimize2, Star, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -381,7 +381,7 @@ export default function PropertyDetailsPage() {
   if (!property) {
     return (
       <main className="mx-auto max-w-6xl p-4 md:p-8">
-        <p className="rounded-xl border border-border/60 bg-card/80 p-4 text-sm text-muted-foreground shadow-sm">
+        <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-card">
           {error || "Loading property details..."}
         </p>
       </main>
@@ -390,31 +390,31 @@ export default function PropertyDetailsPage() {
 
   return (
     <main className="mx-auto max-w-6xl p-4 md:p-8">
-      <section className="mb-5 flex flex-wrap items-center justify-between gap-2 text-sm">
+      <section className="mb-6 flex flex-wrap items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-2">
-          <Link href="/" className="rounded-lg border border-border/60 px-3 py-2 text-foreground/85 hover:bg-background/70">
+          <Link href="/" className="rounded-full border border-border px-4 py-2 text-foreground/85 transition-colors hover:bg-secondary">
             All Properties
           </Link>
-          <span className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-teal-700">Property ID: {property.id}</span>
+          <span className="rounded-full border border-border bg-secondary px-4 py-2 text-secondary-foreground">Property ID: {property.id}</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={toggleWishlist} className="rounded-lg border border-teal-300 bg-card/80 px-3 py-2 text-xs text-teal-700 hover:bg-teal-50">
+          <button onClick={toggleWishlist} className="rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-secondary">
             {wishlistSet.has(property.id) ? "Remove Shortlist" : "Add Shortlist"}
           </button>
-          <button onClick={() => void handleCheckAvailabilityClick()} className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-900">
+          <button onClick={() => void handleCheckAvailabilityClick()} className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-luxe-sm transition-colors hover:bg-primary/90">
             Check Availability
           </button>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm md:p-5">
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+      <section className="rounded-3xl border border-border bg-card p-4 shadow-card md:p-6">
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
           <div>
-            <button className="block w-full overflow-hidden rounded-xl" onClick={() => setLightboxOpen(true)}>
+            <button className="block w-full overflow-hidden rounded-2xl" onClick={() => setLightboxOpen(true)}>
               <img
                 src={activeImage}
                 alt={property.id}
-                className="h-80 w-full object-cover transition duration-300 hover:scale-[1.02]"
+                className="h-80 w-full object-cover transition duration-500 hover:scale-[1.03]"
                 onError={(e) => {
                   e.currentTarget.src = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
                 }}
@@ -425,7 +425,7 @@ export default function PropertyDetailsPage() {
                 <button
                   key={`${img}-${idx}`}
                   onClick={() => setSelectedMediaIndex(idx)}
-                  className={`min-w-[92px] overflow-hidden rounded-lg border ${selectedMediaIndex === idx ? "border-teal-500" : "border-border/60"}`}
+                  className={`min-w-[92px] overflow-hidden rounded-xl border transition-colors ${selectedMediaIndex === idx ? "border-accent ring-1 ring-accent" : "border-border hover:border-accent/50"}`}
                 >
                   <img
                     src={img}
@@ -438,23 +438,32 @@ export default function PropertyDetailsPage() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setLightboxOpen(true)} className="mt-2 rounded-lg border border-border/60 px-3 py-2 text-xs text-foreground/85 hover:bg-background/70">
+            <button onClick={() => setLightboxOpen(true)} className="mt-3 rounded-full border border-border px-4 py-2 text-xs font-medium text-foreground/85 transition-colors hover:bg-secondary">
               View Fullscreen Gallery
             </button>
           </div>
 
           <div>
-            <h1 className="text-3xl font-extrabold text-foreground">{property.id}</h1>
-            <p className="mt-1 text-muted-foreground">{property.location}</p>
-            <p className="mt-3 text-sm text-foreground/85">{property.description}</p>
-            <p className="mt-3 text-lg font-bold text-foreground">₹{property.nightly_price} / night</p>
-            <p className="mt-3 text-sm text-teal-700">⭐ {avgRating.toFixed(1)} · {reviewCount} review(s)</p>
-            <p className="mt-2 text-xs text-muted-foreground">Chat will be recorded for internal training purposes & compliance.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-accent">Aditi Stays</p>
+            <h1 className="mt-2 text-balance text-4xl font-semibold leading-tight text-foreground">{property.id}</h1>
+            <p className="mt-2 font-display text-base italic text-muted-foreground">{property.location}</p>
+            <p className="mt-4 text-sm leading-relaxed text-foreground/85">{property.description}</p>
+            <div className="mt-5 flex flex-wrap items-center gap-4">
+              <p className="text-2xl font-semibold text-foreground">
+                ₹{property.nightly_price}
+                <span className="ml-1 text-sm font-normal text-muted-foreground">/ night</span>
+              </p>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground">
+                <Star className="h-4 w-4 fill-accent text-accent" />
+                {avgRating.toFixed(1)} · {reviewCount} review(s)
+              </span>
+            </div>
+            <p className="mt-3 text-xs italic text-muted-foreground">Chat will be recorded for internal training purposes & compliance.</p>
 
-            <h3 className="mt-4 text-sm font-semibold text-foreground">Amenities</h3>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <h3 className="mt-6 text-[11px] font-semibold uppercase tracking-[0.3em] text-primary">Amenities</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
               {property.amenities.map((amenity) => (
-                <span key={amenity} className="rounded-full border border-border/60 bg-background/70 px-3 py-1 text-xs text-foreground/85">
+                <span key={amenity} className="rounded-full border border-border bg-secondary px-3.5 py-1.5 text-xs font-medium text-foreground">
                   {amenity}
                 </span>
               ))}
@@ -464,15 +473,15 @@ export default function PropertyDetailsPage() {
       </section>
 
       {recentlyBrowsed.length > 0 ? (
-        <section className="mt-5 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-          <h2 className="text-base font-bold text-foreground">Recently Browsed by You</h2>
-          <p className="text-xs text-muted-foreground">Jump back quickly without losing this page context.</p>
-          <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+        <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card">
+          <h2 className="text-xl font-semibold text-foreground">Recently Browsed by You</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Jump back quickly without losing this page context.</p>
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
             {recentlyBrowsed.map((item) => (
               <button
                 key={item.id}
                 onClick={() => router.push(`/properties/${encodeURIComponent(item.id)}`)}
-                className="min-w-[180px] overflow-hidden rounded-xl border border-border/60 bg-background/70 text-left"
+                className="min-w-[180px] overflow-hidden rounded-2xl border border-border bg-secondary text-left transition-shadow hover:shadow-luxe-sm"
               >
                 <img
                   src={item.hero_image}
@@ -482,9 +491,9 @@ export default function PropertyDetailsPage() {
                     e.currentTarget.src = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
                   }}
                 />
-                <div className="p-2">
+                <div className="p-3">
                   <p className="text-xs font-semibold text-foreground">{item.id}</p>
-                  <p className="text-xs text-muted-foreground">{item.location}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{item.location}</p>
                 </div>
               </button>
             ))}
@@ -492,14 +501,14 @@ export default function PropertyDetailsPage() {
         </section>
       ) : null}
 
-      <section className="mt-5 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-        <h2 className="text-lg font-bold text-foreground">Compare from this Property</h2>
-        <p className="text-xs text-muted-foreground">Pick one more property to run side-by-side compare.</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <section className="mt-6 rounded-3xl border border-border bg-card p-5 shadow-card">
+        <h2 className="text-xl font-semibold text-foreground">Compare from this Property</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Pick one more property to run side-by-side compare.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
           <select
             value={compareTarget}
             onChange={(e) => setCompareTarget(e.target.value)}
-            className="min-w-[260px] rounded-lg border border-border/60 bg-card/80 px-3 py-2 text-sm text-foreground/85"
+            className="min-w-[260px] rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">Select property to compare</option>
             {compareOptions.map((item) => (
@@ -508,31 +517,31 @@ export default function PropertyDetailsPage() {
               </option>
             ))}
           </select>
-          <button onClick={() => void runCompare()} className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white">
+          <button onClick={() => void runCompare()} className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-luxe-sm transition-colors hover:bg-primary/90">
             Compare Now
           </button>
         </div>
-        <div className="mt-3">
+        <div className="mt-4">
           <ComparisonTable properties={comparisonData} />
         </div>
       </section>
 
-      <section className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-          <h2 className="text-lg font-bold text-foreground">Write Review</h2>
-          <p className="text-xs text-muted-foreground">One review per visitor per property.</p>
+      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-card">
+          <h2 className="text-xl font-semibold text-foreground">Write Review</h2>
+          <p className="mt-1 text-xs text-muted-foreground">One review per visitor per property.</p>
           {existingVisitorReview ? (
-            <p className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-700">
+            <p className="mt-3 rounded-xl border border-border bg-secondary px-3.5 py-2.5 text-xs text-secondary-foreground">
               Review already submitted on {new Date(existingVisitorReview.created_at).toLocaleString()}.
             </p>
           ) : null}
-          <div className="mt-3 flex gap-2">
+          <div className="mt-4 flex gap-2">
             {[1, 2, 3, 4, 5].map((num) => (
               <button
                 key={num}
                 onClick={() => setFeedbackRating(num)}
                 disabled={Boolean(existingVisitorReview)}
-                className={`rounded-lg px-3 py-2 text-sm ${feedbackRating === num ? "bg-amber-500 text-slate-900" : "border border-border/60 text-foreground/85"}`}
+                className={`rounded-xl px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${feedbackRating === num ? "bg-accent text-accent-foreground" : "border border-border text-foreground/85 hover:bg-secondary"}`}
               >
                 {num}★
               </button>
@@ -543,26 +552,26 @@ export default function PropertyDetailsPage() {
             onChange={(e) => setFeedbackComment(e.target.value)}
             placeholder="Write your review"
             disabled={Boolean(existingVisitorReview)}
-            className="mt-3 h-24 w-full rounded-lg border border-border/60 bg-card/80 p-2 text-sm text-foreground/85"
+            className="mt-4 h-24 w-full rounded-xl border border-input bg-background p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
           />
           <button
             onClick={() => void submitFeedback()}
             disabled={feedbackLoading || Boolean(existingVisitorReview)}
-            className="mt-3 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
+            className="mt-4 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-luxe-sm transition-colors hover:bg-primary/90 disabled:opacity-60"
           >
             {feedbackLoading ? "Submitting..." : "Submit Review"}
           </button>
         </div>
 
-        <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-          <h2 className="text-lg font-bold text-foreground">Recent Reviews</h2>
-          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1 text-sm">
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-card">
+          <h2 className="text-xl font-semibold text-foreground">Recent Reviews</h2>
+          <div className="mt-4 max-h-72 space-y-2.5 overflow-y-auto pr-1 text-sm">
             {reviews.length === 0 ? <p className="text-muted-foreground">No reviews yet.</p> : null}
             {reviews.map((review) => (
-              <article key={review.id} className="rounded-lg border border-border/60 bg-background/70 p-3">
-                <p className="text-amber-600">{"★".repeat(review.rating)}</p>
-                <p className="mt-1 text-foreground/85">{review.comment || "No comment provided."}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{new Date(review.created_at).toLocaleString()}</p>
+              <article key={review.id} className="rounded-2xl border border-border bg-secondary p-4">
+                <p className="tracking-wide text-accent">{"★".repeat(review.rating)}</p>
+                <p className="mt-1.5 text-foreground/85">{review.comment || "No comment provided."}</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">{new Date(review.created_at).toLocaleString()}</p>
               </article>
             ))}
           </div>
@@ -572,24 +581,24 @@ export default function PropertyDetailsPage() {
       <LeadCaptureModal propertyId={property.id} open={leadModalOpen} onClose={() => setLeadModalOpen(false)} onSubmit={createLead} />
 
       {leadId && !chatVisible ? (
-        <div className="fixed bottom-2 right-2 z-50 flex items-center gap-2 rounded-full border border-border/60 bg-card/90 px-2 py-2 shadow-xl backdrop-blur md:bottom-4 md:right-4">
+        <div className="fixed bottom-2 right-2 z-50 flex items-center gap-2 rounded-full border border-border bg-card/95 px-2 py-2 shadow-luxe backdrop-blur md:bottom-4 md:right-4">
           <button
             onClick={() => {
               setChatVisible(true);
               setChatUnreadCount(0);
             }}
-            className="relative rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground"
+            className="relative rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Open Chat
             {chatUnreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-mint px-1 text-[10px] font-bold text-slate-900">
+              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">
                 {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
               </span>
             ) : null}
           </button>
           <button
             onClick={handleCloseChat}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 text-foreground/85 hover:bg-background"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-foreground/85 transition-colors hover:bg-secondary"
             aria-label="Close chat"
           >
             <X className="h-4 w-4" />
@@ -603,23 +612,23 @@ export default function PropertyDetailsPage() {
             chatVisible ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-3 opacity-0 pointer-events-none"
           }`}
         >
-          <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border/60 bg-background/70 px-3 py-2">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-luxe">
+            <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-2.5">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-teal-700">Recorded Chat</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-accent">Recorded Chat</p>
                 <p className="text-xs font-semibold text-foreground">Aditi Stays Support</p>
               </div>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setChatVisible(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border text-foreground/85 transition-colors hover:bg-background"
                   aria-label="Minimize chat"
                 >
                   <Minimize2 className="h-4 w-4" />
                 </button>
                 <button
                   onClick={handleCloseChat}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground/85 hover:bg-background"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border text-foreground/85 transition-colors hover:bg-background"
                   aria-label="Close chat"
                 >
                   <X className="h-4 w-4" />
@@ -646,28 +655,28 @@ export default function PropertyDetailsPage() {
       ) : null}
 
       {lightboxOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/95 p-3">
-          <button onClick={() => setLightboxOpen(false)} className="absolute right-4 top-4 rounded-lg border border-border/60 px-3 py-1 text-xs text-white">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#1a1611]/95 p-3 backdrop-blur-sm">
+          <button onClick={() => setLightboxOpen(false)} className="absolute right-4 top-4 rounded-full border border-white/30 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10">
             Close
           </button>
           <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
             <button
               onClick={() => setSelectedMediaIndex((prev) => (prev - 1 + gallery.length) % gallery.length)}
-              className="rounded-full border border-border/60 px-3 py-2 text-xs text-white"
+              className="rounded-full border border-white/30 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10"
             >
               Prev
             </button>
             <img
               src={activeImage}
               alt={property.id}
-              className="max-h-[86vh] w-full rounded-xl object-contain"
+              className="max-h-[86vh] w-full rounded-2xl object-contain"
               onError={(e) => {
                 e.currentTarget.src = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85";
               }}
             />
             <button
               onClick={() => setSelectedMediaIndex((prev) => (prev + 1) % gallery.length)}
-              className="rounded-full border border-border/60 px-3 py-2 text-xs text-white"
+              className="rounded-full border border-white/30 px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10"
             >
               Next
             </button>
@@ -675,8 +684,8 @@ export default function PropertyDetailsPage() {
         </div>
       ) : null}
 
-      {error ? <p className="mt-4 text-sm text-rose-600">{error}</p> : null}
-      {toast ? <p className="fixed bottom-4 left-4 z-50 rounded-lg border border-teal-200 bg-card/80 px-3 py-2 text-xs text-teal-700 shadow-sm">{toast}</p> : null}
+      {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+      {toast ? <p className="fixed bottom-4 left-4 z-50 rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-foreground shadow-card">{toast}</p> : null}
     </main>
   );
 }

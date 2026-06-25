@@ -379,30 +379,31 @@ export default function HomePage() {
               decoding="async"
             />
           )}
-          <div className="absolute inset-0 bg-[linear-gradient(112deg,rgba(4,13,20,0.76)_8%,rgba(4,13,20,0.44)_42%,rgba(4,13,20,0.2)_74%)] dark:bg-[linear-gradient(112deg,rgba(8,31,45,0.82)_8%,rgba(8,31,45,0.5)_42%,rgba(8,31,45,0.24)_74%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(112deg,rgba(26,22,17,0.78)_8%,rgba(26,22,17,0.46)_42%,rgba(26,22,17,0.2)_74%)] dark:bg-[linear-gradient(112deg,rgba(26,22,17,0.86)_8%,rgba(26,22,17,0.54)_42%,rgba(26,22,17,0.26)_74%)]" />
         </div>
 
         <header className="absolute left-0 right-0 top-0 z-30 mx-auto flex w-full max-w-[1480px] items-center justify-between px-5 py-5 md:px-8 md:py-6">
-          <div className="inline-flex items-center gap-3 rounded-full border border-white/25 bg-black/18 px-4 py-2 text-white backdrop-blur-xl">
-            <span className="h-2 w-2 rounded-full bg-mint shadow-[0_0_0_5px_rgba(83,216,196,0.2)]" />
+          <div className="inline-flex items-center gap-3 rounded-full border border-white/25 bg-[rgba(26,22,17,0.32)] px-4 py-2 text-white backdrop-blur-xl">
+            <span className="h-2 w-2 rounded-full bg-mint shadow-[0_0_0_5px_rgba(185,132,47,0.28)]" />
             <div>
-              <p className="text-[10px] uppercase tracking-[0.42em] text-white/95">Aditi Stays</p>
+              <p className="font-display text-[10px] uppercase tracking-[0.42em] text-white/95">Aditi Stays</p>
               <p className="text-[11px] text-white/78">Handpicked stays with real concierge</p>
             </div>
           </div>
         </header>
 
         <div className="relative z-10 mx-auto flex h-full w-full max-w-[1480px] items-end px-5 pb-28 md:px-8 md:pb-32">
-          <div className="max-w-4xl space-y-5 text-white">
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/12 px-4 py-1.5 text-xs font-medium text-white backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
-              Crafted escapes for families, couples, and long weekends
+          <div className="max-w-4xl space-y-6 text-white">
+            <p className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-[rgba(26,22,17,0.34)] px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.3em] text-accent backdrop-blur-md">
+              <Sparkles className="h-3.5 w-3.5 text-accent" />
+              Crafted escapes for families and couples
             </p>
-            <h1 className="text-4xl font-extrabold leading-[1.03] text-white drop-shadow-[0_6px_22px_rgba(2,6,23,0.46)] md:text-6xl lg:text-7xl">
-              Not just stays. Signature experiences.
+            <h1 className="text-balance text-4xl font-semibold leading-[1.02] tracking-tight text-white drop-shadow-[0_6px_22px_rgba(26,22,17,0.5)] md:text-6xl lg:text-7xl">
+              Not just stays.{" "}
+              <span className="italic text-accent">Signature</span> experiences.
             </h1>
             <p
-              className="relative z-10 max-w-2xl text-sm font-medium drop-shadow-[0_4px_18px_rgba(2,6,23,0.44)] md:text-base"
+              className="relative z-10 max-w-2xl text-pretty text-sm font-medium leading-relaxed drop-shadow-[0_4px_18px_rgba(26,22,17,0.5)] md:text-base"
               style={{ color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
             >
               Discover handpicked properties, shortlist instantly, and connect with a real concierge for availability and confirmation.
@@ -411,7 +412,7 @@ export default function HomePage() {
         </div>
 
         <div className="absolute bottom-[-58px] left-1/2 z-40 w-[calc(100%-1.25rem)] max-w-[1260px] -translate-x-1/2 md:bottom-[-52px]">
-          <div className="grid gap-2 rounded-[26px] border border-white/45 bg-white/92 p-2 shadow-[0_34px_72px_-44px_rgba(8,31,45,0.7)] backdrop-blur-xl dark:border-white/15 dark:bg-card/92 md:grid-cols-[1fr_240px_auto] md:items-center md:rounded-full md:p-2.5">
+          <div className="grid gap-2 rounded-[26px] border border-white/45 bg-white/92 p-2 shadow-luxe backdrop-blur-xl dark:border-white/15 dark:bg-card/92 md:grid-cols-[1fr_240px_auto] md:items-center md:rounded-full md:p-2.5">
             <div className="relative">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -441,7 +442,7 @@ export default function HomePage() {
             <Button
               variant="secondary"
               onClick={() => setAdvancedOpen(true)}
-              className="h-12 rounded-full bg-accent px-7 text-accent-foreground shadow-[0_12px_36px_-20px_rgba(248,181,0,0.9)] transition hover:brightness-105"
+              className="h-12 rounded-full bg-accent px-7 text-accent-foreground shadow-luxe-sm transition hover:brightness-105"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
@@ -525,14 +526,14 @@ export default function HomePage() {
       <section className="mx-auto mt-24 w-full max-w-[1480px] space-y-10 px-5 md:mt-28 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.34em] text-mint">Featured Collection</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground md:text-4xl">Find Your Next Escape</h2>
+            <p className="text-xs uppercase tracking-[0.3em] text-accent">Featured Collection</p>
+            <h2 className="mt-2 text-balance text-2xl font-semibold tracking-tight text-foreground md:text-4xl">Find Your Next Escape</h2>
           </div>
           <p className="text-sm text-muted-foreground">{filteredProperties.length} matching stays</p>
         </div>
 
         {wishlist.length > 0 ? (
-          <div className="rounded-3xl border border-border/60 bg-card/70 px-4 py-4 shadow-[0_20px_56px_-40px_rgba(8,31,45,0.65)] backdrop-blur-xl md:px-5">
+          <div className="rounded-3xl border border-border/60 bg-card/70 px-4 py-4 shadow-luxe backdrop-blur-xl md:px-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-foreground">Your Shortlisted Stays</p>
               <p className="text-xs text-muted-foreground">{wishlist.length} saved</p>
@@ -541,7 +542,7 @@ export default function HomePage() {
               {wishlist.map((item) => (
                 <article
                   key={item.id}
-                  className="group relative min-w-[200px] overflow-hidden rounded-2xl border border-border/60 bg-background/65 shadow-[0_14px_34px_-26px_rgba(8,31,45,0.6)]"
+                  className="group relative min-w-[200px] overflow-hidden rounded-2xl border border-border/60 bg-background/65 shadow-luxe-sm"
                 >
                   <button className="block w-full text-left" onClick={() => void openDetails(item.id)}>
                     <img
@@ -580,8 +581,8 @@ export default function HomePage() {
             ).slice(0, 6);
 
             return (
-              <article key={property.id} className="group [content-visibility:auto]">
-                <div className="relative overflow-hidden rounded-[28px] shadow-[0_18px_44px_-36px_rgba(8,31,45,0.58)]">
+              <article key={property.id} className="group [content-visibility:auto] transition-transform duration-300 hover:-translate-y-1">
+                <div className="relative overflow-hidden rounded-[28px] shadow-card transition-shadow duration-300 group-hover:shadow-luxe">
                   <div
                     role="button"
                     tabIndex={0}
@@ -649,12 +650,12 @@ export default function HomePage() {
                     className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/86 shadow-md backdrop-blur-md transition-all hover:scale-105 dark:bg-base/86"
                   >
                     <Heart
-                      className={`h-5 w-5 transition-colors ${wishlistSet.has(property.id) ? "fill-rose-500 text-rose-500" : "text-slate-700 dark:text-white"}`}
+                      className={`h-5 w-5 transition-colors ${wishlistSet.has(property.id) ? "fill-rose-500 text-rose-500" : "text-base dark:text-white"}`}
                     />
                   </button>
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/45 to-transparent" />
-                  <div className="absolute bottom-3 left-4 rounded-full bg-white/18 px-3 py-1 text-[11px] font-semibold tracking-wide text-white backdrop-blur-md">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[rgba(26,22,17,0.5)] to-transparent" />
+                  <div className="absolute bottom-3 left-4 rounded-full bg-[rgba(26,22,17,0.32)] px-3 py-1 text-[11px] font-semibold tracking-wide text-white backdrop-blur-md">
                     {property.id}
                   </div>
                 </div>
@@ -668,21 +669,24 @@ export default function HomePage() {
                       </p>
                       <button
                         onClick={() => void openDetails(property.id)}
-                        className="mt-1 text-left text-lg font-semibold text-foreground transition-colors hover:text-mint"
+                        className="mt-1 text-left text-lg font-semibold tracking-tight text-foreground transition-colors hover:text-mint"
                       >
                         {property.public_title || property.id}
                       </button>
                     </div>
-                    <p className="text-lg font-bold text-foreground">₹{property.nightly_price}</p>
+                    <p className="font-display text-lg font-semibold text-foreground">
+                      ₹{property.nightly_price}
+                      <span className="ml-0.5 text-xs font-normal text-muted-foreground">/night</span>
+                    </p>
                   </div>
 
                   <p className="line-clamp-2 text-sm text-muted-foreground">{property.description || "-"}</p>
 
                   <div className="flex items-center justify-between pt-1">
-                    <p className="flex items-center gap-1 text-sm text-mint">
-                      <Star className="h-4 w-4 fill-mint text-mint" />
+                    <p className="flex items-center gap-1 text-sm font-medium text-accent">
+                      <Star className="h-4 w-4 fill-accent text-accent" />
                       {feedback ? feedback.avg_rating.toFixed(1) : "0.0"}
-                      <span className="text-xs text-muted-foreground">({feedback?.review_count ?? 0})</span>
+                      <span className="text-xs font-normal text-muted-foreground">({feedback?.review_count ?? 0})</span>
                     </p>
                     <button
                       onClick={() => void openDetails(property.id)}
@@ -699,7 +703,7 @@ export default function HomePage() {
         </div>
 
         {initialLoaded && filteredProperties.length === 0 ? (
-          <div className="rounded-3xl border border-border/60 bg-card/70 px-5 py-10 text-center shadow-[0_20px_56px_-40px_rgba(8,31,45,0.65)] backdrop-blur-xl">
+          <div className="rounded-3xl border border-border/60 bg-card/70 px-5 py-10 text-center shadow-luxe backdrop-blur-xl">
             <p className="text-base font-semibold text-foreground">No stays match this filter</p>
             <p className="mt-1 text-sm text-muted-foreground">Try reducing filters or switch to another location.</p>
             <Button onClick={clearFilters} className="mt-4 rounded-full bg-accent px-5 text-accent-foreground">

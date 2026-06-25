@@ -46,8 +46,8 @@
   - Upload guardrails and optional S3 backend.
 - Redis + PostgreSQL:
   - Redis event channels + active lead set.
-  - PostgreSQL schema for all operational entities.
-- Infra and deployment:
-  - Terraform: VPC, RDS, ElastiCache Redis, EC2 K3s nodes, ECR repos.
-  - GitOps: GitHub Actions updates manifests, ArgoCD sync manifest included.
-  - Recovery script for infra + ArgoCD resync.
+  - PostgreSQL schema for all operational entities, self-bootstrapped by the
+    core API on startup (`EnsureSchema`), so no external migration step is needed.
+- Deployment:
+  - Infrastructure, CI/CD, and container orchestration are managed outside this
+    repository by the DevOps team.
