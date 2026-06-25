@@ -348,7 +348,7 @@ export default function ChatWindow({
         fillHeight ? "flex h-full min-h-0 flex-col" : ""
       }`}
     >
-      <div className="flex items-center justify-between border-b border-border bg-[linear-gradient(90deg,hsl(var(--mint)/0.12),transparent_36%,hsl(var(--accent)/0.12))] px-4 py-3.5">
+      <div className="flex items-center justify-between border-b border-border bg-[linear-gradient(90deg,hsl(var(--primary)/0.10),transparent_36%,hsl(var(--accent)/0.12))] px-4 py-3.5">
         <div>
           <p className="text-[11px] uppercase tracking-[0.3em] text-accent">Recorded Conversation</p>
           <h3 className="font-display text-base font-semibold text-foreground">{hideLeadId ? "Live Chat" : `Lead #${leadId}`}</h3>
@@ -362,7 +362,7 @@ export default function ChatWindow({
       <div
         ref={listRef}
         onScroll={handleListScroll}
-        className={`relative overflow-y-auto bg-[radial-gradient(circle_at_top,hsl(var(--mint)/0.08),transparent_46%),radial-gradient(circle_at_bottom,hsl(var(--accent)/0.07),transparent_45%)] p-4 ${
+        className={`relative overflow-y-auto bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.07),transparent_46%),radial-gradient(circle_at_bottom,hsl(var(--accent)/0.07),transparent_45%)] p-4 ${
           fillHeight ? "min-h-0 flex-1" : "h-80"
         }`}
       >
