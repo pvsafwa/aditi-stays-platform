@@ -14,7 +14,10 @@ type Props = {
   leadId: number;
   role: "user" | "admin";
   actor: string;
+  /** WebSocket auth: per-lead HMAC token for role=user, ADMIN_CHAT_TOKEN for role=admin. */
   authToken?: string;
+  /** REST bearer for admin-only calls (upload-proof). Defaults to authToken; only diverges for role=admin, where the WS token and the Keycloak JWT are different values. */
+  restToken?: string;
   hideLeadId?: boolean;
   userDisplayName?: string;
   propertyOptions?: Array<{ id: string; label?: string }>;
@@ -90,6 +93,7 @@ export default function ChatWindow({
   role,
   actor,
   authToken,
+  restToken,
   hideLeadId = false,
   userDisplayName,
   propertyOptions,
@@ -311,7 +315,7 @@ export default function ChatWindow({
       await uploadProof(
         leadId,
         file,
-        role === "admin" ? { adminToken: authToken } : { chatToken: authToken }
+        role === "admin" ? { adminToken: restToken ?? authToken } : { chatToken: authToken }
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");

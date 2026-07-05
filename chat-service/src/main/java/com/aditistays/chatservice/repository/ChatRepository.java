@@ -3,12 +3,10 @@ package com.aditistays.chatservice.repository;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -47,15 +45,6 @@ public class ChatRepository {
         }, leadId);
     }
 
-    public Optional<String> getCustomerName(long leadId) {
-        try {
-            String name = jdbc.queryForObject("SELECT customer_name FROM leads WHERE id=?", String.class, leadId);
-            return Optional.ofNullable(name);
-        } catch (EmptyResultDataAccessException e) {
-            return Optional.empty();
-        }
-    }
-
     public void savePaymentProof(long leadId, String fileUrl, String uploadedBy) {
         jdbc.update("""
                 INSERT INTO payment_proofs(lead_id, file_url, uploaded_by)
@@ -63,12 +52,34 @@ public class ChatRepository {
                 """, leadId, fileUrl, uploadedBy);
     }
 
-    public void confirmLead(long leadId, String details) {
-        jdbc.update("""
-                UPDATE leads
-                SET status='CONFIRMED', admin_notes=?, updated_at=NOW()
-                WHERE id=?
-                """, details, leadId);
+    /** One row per lead_id: its most recent chat message, for crm-service's admin leads list preview. */
+    public Map<Long, Map<String, Object>> getLastMessages(List<Long> leadIds) {
+        if (leadIds == null || leadIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Map<String, Object>> rows = jdbc.query(con -> {
+            var ps = con.prepareStatement("""
+                    SELECT DISTINCT ON (lead_id) lead_id, sender_role, content, created_at
+                    FROM chat_messages
+                    WHERE lead_id = ANY(?::bigint[])
+                    ORDER BY lead_id, created_at DESC
+                    """);
+            ps.setArray(1, con.createArrayOf("bigint", leadIds.toArray()));
+            return ps;
+        }, (rs, rowNum) -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("lead_id", rs.getLong("lead_id"));
+            m.put("sender_role", rs.getString("sender_role"));
+            m.put("content", rs.getString("content"));
+            m.put("created_at", rs.getTimestamp("created_at").toInstant().toString());
+            return m;
+        });
+
+        Map<Long, Map<String, Object>> byLeadId = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            byLeadId.put((Long) row.get("lead_id"), row);
+        }
+        return byLeadId;
     }
 
     @SneakyThrows

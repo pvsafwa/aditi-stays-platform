@@ -10,6 +10,7 @@
 # Env
 .env
 .env.*
+!.env.example
 
 # Node
 node_modules/
@@ -20,6 +21,7 @@ out/
 coverage/
 dist/
 build/
+*.tsbuildinfo
 
 # Java / Maven
 target/

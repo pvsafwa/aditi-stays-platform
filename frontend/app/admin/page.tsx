@@ -1,6 +1,7 @@
 "use client";
 
 import { Minimize2, X } from "lucide-react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ChatWindow from "@/components/ChatWindow";
 import {
@@ -203,15 +204,10 @@ const defaultPropertyForm: PropertyFormState = {
 };
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authChecking, setAuthChecking] = useState(true);
+  const { data: authSession, status: authStatus } = useSession();
+  const isAuthenticated = authStatus === "authenticated";
   const [session, setSession] = useState<AdminSession | null>(null);
-
-  const [loginApiToken, setLoginApiToken] = useState("");
-  const [loginChatToken, setLoginChatToken] = useState("");
-  const [loginActor, setLoginActor] = useState("admin-ops");
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginLoading, setLoginLoading] = useState(false);
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
@@ -302,85 +298,53 @@ export default function AdminPage() {
   const paymentSummary = context?.payment_summary || {};
   const paymentRows = context?.payments || [];
 
-  const hydrateSavedSession = useCallback(() => {
-    const apiToken = localStorage.getItem("aditi_admin_token") || "";
-    const chatToken = localStorage.getItem("aditi_admin_chat_token") || apiToken;
-    const actor = localStorage.getItem("aditi_admin_actor") || "admin-ops";
-
-    setLoginApiToken(apiToken);
-    setLoginChatToken(chatToken);
-    setLoginActor(actor);
-
-    if (!apiToken) {
-      setAuthChecking(false);
-      setIsAuthenticated(false);
+  // Admin REST auth is the Keycloak access token NextAuth manages (login via
+  // signIn("keycloak") below); the admin WebSocket connection still
+  // authenticates with the separate static ADMIN_CHAT_TOKEN secret (see
+  // ChatSecurity.verifyAdminWsToken), fetched once per session from a
+  // server-only route gated on having a valid NextAuth session.
+  useEffect(() => {
+    if (authStatus !== "authenticated" || !authSession?.accessToken) {
+      setSession(null);
+      return;
+    }
+    if (authSession.error === "RefreshAccessTokenError") {
+      setLoginError("Your session expired. Please sign in again.");
+      setSession(null);
+      void signOut();
       return;
     }
 
+    let cancelled = false;
     void (async () => {
       try {
-        const initialSession: AdminSession = { apiToken, chatToken, actor };
-        await getAllLeads(initialSession.apiToken, initialSession.actor);
-        setSession(initialSession);
-        setIsAuthenticated(true);
-      } catch {
-        setIsAuthenticated(false);
-        setSession(null);
-      } finally {
-        setAuthChecking(false);
+        const res = await fetch("/api/admin/chat-token");
+        if (!res.ok) {
+          throw new Error("Failed to establish chat session");
+        }
+        const body = (await res.json()) as { chatToken: string };
+        if (cancelled) return;
+        setSession({
+          apiToken: authSession.accessToken as string,
+          chatToken: body.chatToken,
+          actor: authSession.actor || authSession.user?.name || authSession.user?.email || "admin",
+        });
+        setLoginError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setLoginError(err instanceof Error ? err.message : "Failed to establish admin session");
+          setSession(null);
+        }
       }
     })();
-  }, []);
-
-  useEffect(() => {
-    hydrateSavedSession();
-  }, [hydrateSavedSession]);
-
-  const saveSession = (next: AdminSession) => {
-    localStorage.setItem("aditi_admin_token", next.apiToken);
-    localStorage.setItem("aditi_admin_chat_token", next.chatToken);
-    localStorage.setItem("aditi_admin_actor", next.actor);
-  };
-
-  const clearSession = () => {
-    localStorage.removeItem("aditi_admin_token");
-    localStorage.removeItem("aditi_admin_chat_token");
-    localStorage.removeItem("aditi_admin_actor");
-  };
-
-  const handleLogin = async () => {
-    setLoginError(null);
-    setUiError(null);
-    if (!loginApiToken.trim()) {
-      setLoginError("API token is required.");
-      return;
-    }
-
-    const next: AdminSession = {
-      apiToken: loginApiToken.trim(),
-      chatToken: (loginChatToken || loginApiToken).trim(),
-      actor: loginActor.trim() || "admin-ops",
+    return () => {
+      cancelled = true;
     };
-
-    setLoginLoading(true);
-    try {
-      await getAllLeads(next.apiToken, next.actor);
-      saveSession(next);
-      setSession(next);
-      setIsAuthenticated(true);
-    } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "Login failed");
-      setIsAuthenticated(false);
-      setSession(null);
-    } finally {
-      setLoginLoading(false);
-    }
-  };
+  }, [authStatus, authSession]);
 
   const handleLogout = () => {
-    clearSession();
+    void signOut();
     setSession(null);
-    setIsAuthenticated(false);
     setLeads([]);
     setSelectedLeadId(null);
     setAdminChatVisible(false);
@@ -854,7 +818,7 @@ export default function AdminPage() {
 
   const parsedMedia = parseList(propertyForm.media);
 
-  if (authChecking) {
+  if (authStatus === "loading") {
     return (
       <main className="mx-auto max-w-4xl p-6">
         <div className="rounded-3xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-card">
@@ -872,33 +836,12 @@ export default function AdminPage() {
           <h1 className="mt-2 text-3xl text-foreground text-balance">Admin Login</h1>
           <p className="mt-2 text-sm text-muted-foreground">Secure access for CRM operations.</p>
 
-          <div className="mt-6 grid gap-3">
-            <input
-              type="password"
-              value={loginApiToken}
-              onChange={(e) => setLoginApiToken(e.target.value)}
-              placeholder="API bearer token"
-              className="rounded-xl border border-input bg-background p-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <input
-              type="password"
-              value={loginChatToken}
-              onChange={(e) => setLoginChatToken(e.target.value)}
-              placeholder="Chat websocket token (optional if same as API token)"
-              className="rounded-xl border border-input bg-background p-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <input
-              value={loginActor}
-              onChange={(e) => setLoginActor(e.target.value)}
-              placeholder="Actor label (audit trail)"
-              className="rounded-xl border border-input bg-background p-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
-            />
+          <div className="mt-6">
             <button
-              onClick={() => void handleLogin()}
-              disabled={loginLoading}
-              className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-luxe-sm transition hover:opacity-90 disabled:opacity-60"
+              onClick={() => void signIn("keycloak")}
+              className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-luxe-sm transition hover:opacity-90"
             >
-              {loginLoading ? "Logging in..." : "Login"}
+              Login with Keycloak
             </button>
           </div>
 
@@ -1630,7 +1573,8 @@ export default function AdminPage() {
                 leadId={selectedLead?.id || selectedLeadId}
                 role="admin"
                 actor={session.actor}
-                authToken={session.chatToken || session.apiToken}
+                authToken={session.chatToken}
+                restToken={session.apiToken}
                 fillHeight
                 showProofUpload={false}
                 isVisible={adminChatVisible}

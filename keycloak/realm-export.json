@@ -1,0 +1,61 @@
+{
+  "realm": "aditi-stays",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Human admin dashboard users" },
+      { "name": "service", "description": "Machine-to-machine backend service calls" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "admin-dashboard",
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "admin-dashboard-secret-change-me",
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      }
+    },
+    {
+      "clientId": "internal-service",
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "internal-service-secret-change-me"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@aditistays.local",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Aditi",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "AdminPass123!", "temporary": false }
+      ],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "service-account-internal-service",
+      "serviceAccountClientId": "internal-service",
+      "enabled": true,
+      "realmRoles": ["service"]
+    }
+  ]
+}

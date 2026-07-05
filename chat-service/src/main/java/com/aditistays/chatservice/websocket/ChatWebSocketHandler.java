@@ -8,10 +8,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.aditistays.chatservice.dto.ChatInput;
-import com.aditistays.chatservice.filter.MetricsCollector;
 import com.aditistays.chatservice.security.ChatSecurity;
 import com.aditistays.chatservice.service.ChatManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -33,7 +33,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final ChatSecurity security;
     private final ChatManager chatManager;
-    private final MetricsCollector metrics;
+    private final MeterRegistry meterRegistry;
     private final ObjectMapper objectMapper;
 
     private final Map<String, Connection> connections = new ConcurrentHashMap<>();
@@ -100,7 +100,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         event.put("metadata", input.getMetadata() == null ? Map.of() : input.getMetadata());
         event.put("created_at", Instant.now().toString());
 
-        metrics.recordWsMessage();
+        meterRegistry.counter("aditi_chat_websocket_messages_total").increment();
         chatManager.broadcastEvent(conn.leadId(), event, true);
     }
 

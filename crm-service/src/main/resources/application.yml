@@ -1,0 +1,51 @@
+server:
+  port: ${APP_PORT:8080}
+
+spring:
+  application:
+    name: crm-service
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_absent
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # jwk-set-uri is fetched directly (no OIDC discovery), so it can
+          # point at a different, network-reachable hostname than issuer-uri
+          # -- which only needs to string-match the JWT's iss claim. Needed
+          # because Keycloak's KC_HOSTNAME fixes iss to the browser-facing
+          # localhost:8180 URL even for tokens/requests made over the docker
+          # network, which can't route to that URL to fetch keys itself.
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/aditi-stays}
+          jwk-set-uri: ${OIDC_JWK_SET_URI:http://localhost:8180/realms/aditi-stays/protocol/openid-connect/certs}
+      client:
+        registration:
+          internal-service:
+            provider: keycloak
+            client-id: internal-service
+            client-secret: ${KEYCLOAK_CLIENT_SECRET:internal-service-secret-change-me}
+            authorization-grant-type: client_credentials
+        provider:
+          keycloak:
+            # token-uri (not issuer-uri) so this skips OIDC discovery too --
+            # discovery would fetch the doc from issuer-uri itself, which is
+            # the same unreachable-from-a-container localhost:8180 problem.
+            # client_credentials only ever needs the token endpoint anyway.
+            token-uri: ${OIDC_TOKEN_URI:http://localhost:8180/realms/aditi-stays/protocol/openid-connect/token}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  level:
+    root: INFO

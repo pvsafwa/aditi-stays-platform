@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -11,9 +13,18 @@ import com.aditistays.chatservice.config.AppProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 
-/** Mirrors chat-service's Python app/core/security.py. */
+/**
+ * Mirrors chat-service's Python app/core/security.py. Admin checks now decode
+ * and validate the caller's Keycloak-issued JWT directly (rather than relying
+ * on a path-based Spring Security rule) because admin-only actions here are
+ * interleaved with per-lead user chat token access on the same /api/chat/**
+ * paths (e.g. requireChatHttpAccess accepts either).
+ */
 @Component
 @RequiredArgsConstructor
 public class ChatSecurity {
@@ -21,6 +32,7 @@ public class ChatSecurity {
     private static final String HMAC_ALGO = "HmacSHA256";
 
     private final AppProperties props;
+    private final JwtDecoder jwtDecoder;
 
     public String extractBearer(String authorization) {
         if (authorization == null || authorization.isBlank()) {
@@ -34,13 +46,11 @@ public class ChatSecurity {
     }
 
     public String requireAdminHttp(HttpServletRequest request) {
-        String token = extractBearer(request.getHeader("Authorization"));
-        if (token.isEmpty() || !constantTimeEquals(token, props.adminApiToken())) {
+        Jwt jwt = decodeAdminJwt(extractBearer(request.getHeader("Authorization")));
+        if (jwt == null) {
             throw new ForbiddenException("invalid admin token");
         }
-        String actor = request.getHeader("X-Admin-Actor");
-        String trimmed = actor == null ? "" : actor.trim();
-        return trimmed.isEmpty() ? "admin" : trimmed;
+        return adminActor(jwt, request);
     }
 
     @SneakyThrows
@@ -92,15 +102,14 @@ public class ChatSecurity {
         if (token == null || token.isEmpty()) {
             return false;
         }
-        return constantTimeEquals(token, props.adminChatToken()) || constantTimeEquals(token, props.adminApiToken());
+        return constantTimeEquals(token, props.adminChatToken());
     }
 
     public ChatAccess requireChatHttpAccess(long leadId, HttpServletRequest request) {
         String bearer = extractBearer(request.getHeader("Authorization"));
-        if (!bearer.isEmpty() && constantTimeEquals(bearer, props.adminApiToken())) {
-            String actor = request.getHeader("X-Admin-Actor");
-            String trimmed = actor == null ? "" : actor.trim();
-            return new ChatAccess("admin", trimmed.isEmpty() ? "admin" : trimmed);
+        Jwt jwt = decodeAdminJwt(bearer);
+        if (jwt != null) {
+            return new ChatAccess("admin", adminActor(jwt, request));
         }
 
         String xChatToken = request.getHeader("X-Chat-Token");
@@ -110,6 +119,35 @@ public class ChatSecurity {
         }
 
         throw new ForbiddenException("invalid chat token");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Jwt decodeAdminJwt(String token) {
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+        Jwt jwt;
+        try {
+            jwt = jwtDecoder.decode(token);
+        } catch (JwtException e) {
+            return null;
+        }
+        Object realmAccess = jwt.getClaimAsMap("realm_access");
+        if (!(realmAccess instanceof Map<?, ?> map) || !(map.get("roles") instanceof List<?> roles)) {
+            return null;
+        }
+        boolean authorized = roles.contains("admin") || roles.contains("service");
+        return authorized ? jwt : null;
+    }
+
+    private static String adminActor(Jwt jwt, HttpServletRequest request) {
+        String actorHeader = request.getHeader("X-Admin-Actor");
+        String trimmed = actorHeader == null ? "" : actorHeader.trim();
+        if (!trimmed.isEmpty()) {
+            return trimmed;
+        }
+        String username = jwt.getClaimAsString("preferred_username");
+        return (username == null || username.isEmpty()) ? "admin" : username;
     }
 
     private static boolean constantTimeEquals(String a, String b) {

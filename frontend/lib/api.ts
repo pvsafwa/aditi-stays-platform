@@ -1,4 +1,4 @@
-import { CORE_API_URL, CHAT_HTTP_URL } from "@/lib/config";
+import { CORE_API_URL, CATALOG_API_URL, CHAT_HTTP_URL } from "@/lib/config";
 
 async function parse<T>(res: Response): Promise<T> {
   const data = await res.json();
@@ -19,16 +19,16 @@ function adminHeaders(token: string, actor = "admin-ops") {
 }
 
 export async function getProperties() {
-  return parse<{ data: any[] }>(await fetch(`${CORE_API_URL}/api/properties`, { cache: "no-store" }));
+  return parse<{ data: any[] }>(await fetch(`${CATALOG_API_URL}/api/properties`, { cache: "no-store" }));
 }
 
 export async function getPropertyById(propertyId: string) {
-  return parse<{ data: any }>(await fetch(`${CORE_API_URL}/api/properties/${encodeURIComponent(propertyId)}`, { cache: "no-store" }));
+  return parse<{ data: any }>(await fetch(`${CATALOG_API_URL}/api/properties/${encodeURIComponent(propertyId)}`, { cache: "no-store" }));
 }
 
 export async function getPropertyFeedbackSummary() {
   return parse<{ data: Array<{ property_id: string; avg_rating: number; review_count: number }> }>(
-    await fetch(`${CORE_API_URL}/api/properties/feedback-summary`, { cache: "no-store" })
+    await fetch(`${CATALOG_API_URL}/api/properties/feedback-summary`, { cache: "no-store" })
   );
 }
 
@@ -47,7 +47,7 @@ export async function getPropertyReviews(propertyId: string) {
       avg_rating: number;
       review_count: number;
     };
-  }>(await fetch(`${CORE_API_URL}/api/properties/${encodeURIComponent(propertyId)}/feedback`, { cache: "no-store" }));
+  }>(await fetch(`${CATALOG_API_URL}/api/properties/${encodeURIComponent(propertyId)}/feedback`, { cache: "no-store" }));
 }
 
 export async function addPropertyFeedback(
@@ -59,7 +59,7 @@ export async function addPropertyFeedback(
   }
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/properties/${encodeURIComponent(propertyId)}/feedback`, {
+    await fetch(`${CATALOG_API_URL}/api/properties/${encodeURIComponent(propertyId)}/feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -69,7 +69,7 @@ export async function addPropertyFeedback(
 
 export async function trackBrowsing(visitorId: string, propertyId: string) {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/browsing-history`, {
+    await fetch(`${CATALOG_API_URL}/api/browsing-history`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visitor_id: visitorId, property_id: propertyId }),
@@ -79,13 +79,13 @@ export async function trackBrowsing(visitorId: string, propertyId: string) {
 
 export async function getBrowsingHistory(visitorId: string) {
   return parse<{ data: Array<{ property_id: string; viewed_at: string }> }>(
-    await fetch(`${CORE_API_URL}/api/browsing-history/${encodeURIComponent(visitorId)}`, { cache: "no-store" })
+    await fetch(`${CATALOG_API_URL}/api/browsing-history/${encodeURIComponent(visitorId)}`, { cache: "no-store" })
   );
 }
 
 export async function addWishlistItem(visitorId: string, propertyId: string) {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/wishlist/items`, {
+    await fetch(`${CATALOG_API_URL}/api/wishlist/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visitor_id: visitorId, property_id: propertyId }),
@@ -95,19 +95,19 @@ export async function addWishlistItem(visitorId: string, propertyId: string) {
 
 export async function removeWishlistItem(visitorId: string, propertyId: string) {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/wishlist/items?visitor_id=${visitorId}&property_id=${propertyId}`, {
+    await fetch(`${CATALOG_API_URL}/api/wishlist/items?visitor_id=${visitorId}&property_id=${propertyId}`, {
       method: "DELETE",
     })
   );
 }
 
 export async function getWishlist(visitorId: string) {
-  return parse<{ data: any[] }>(await fetch(`${CORE_API_URL}/api/wishlist/${visitorId}`, { cache: "no-store" }));
+  return parse<{ data: any[] }>(await fetch(`${CATALOG_API_URL}/api/wishlist/${visitorId}`, { cache: "no-store" }));
 }
 
 export async function compareProperties(propertyIds: string[]) {
   return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/comparisons`, {
+    await fetch(`${CATALOG_API_URL}/api/comparisons`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ property_ids: propertyIds }),
@@ -178,7 +178,7 @@ export async function getChatMessagesForUser(leadId: number, chatToken: string) 
 }
 
 export async function listBanners() {
-  return parse<{ data: any[] }>(await fetch(`${CORE_API_URL}/api/banners`, { cache: "no-store" }));
+  return parse<{ data: any[] }>(await fetch(`${CATALOG_API_URL}/api/banners`, { cache: "no-store" }));
 }
 
 export async function uploadProof(
@@ -347,7 +347,7 @@ export async function sendAdminStatusMessage(
 
 export async function listAdminBanners(adminToken: string, actor = "admin-ops") {
   return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/banners`, {
       cache: "no-store",
       headers: adminHeaders(adminToken, actor),
     })
@@ -360,7 +360,7 @@ export async function addAdminBanner(
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/banners`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -409,7 +409,7 @@ export async function uploadAdminPropertyImage(file: File, adminToken: string, a
 
 export async function deleteAdminBanner(bannerId: number, adminToken: string, actor = "admin-ops") {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners/${bannerId}`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/banners/${bannerId}`, {
       method: "DELETE",
       headers: adminHeaders(adminToken, actor),
     })
@@ -423,7 +423,7 @@ export async function updateAdminBanner(
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/banners/${bannerId}`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/banners/${bannerId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -449,7 +449,7 @@ export async function addAdminProperty(
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/properties`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -462,7 +462,7 @@ export async function addAdminProperty(
 
 export async function listAdminProperties(adminToken: string, actor = "admin-ops") {
   return parse<{ data: any[] }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/properties`, {
       cache: "no-store",
       headers: adminHeaders(adminToken, actor),
     })
@@ -484,7 +484,7 @@ export async function updateAdminProperty(
   actor = "admin-ops"
 ) {
   return parse<{ data: any }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -497,7 +497,7 @@ export async function updateAdminProperty(
 
 export async function deleteAdminProperty(propertyId: string, adminToken: string, actor = "admin-ops") {
   return parse<{ ok: boolean }>(
-    await fetch(`${CORE_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
+    await fetch(`${CATALOG_API_URL}/api/admin/properties/${encodeURIComponent(propertyId)}`, {
       method: "DELETE",
       headers: adminHeaders(adminToken, actor),
     })

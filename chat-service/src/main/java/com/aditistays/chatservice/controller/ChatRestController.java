@@ -8,11 +8,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import com.aditistays.chatservice.client.CrmClient;
 import com.aditistays.chatservice.config.AppProperties;
 import com.aditistays.chatservice.dto.AdminStatusInput;
 import com.aditistays.chatservice.dto.ConfirmInput;
 import com.aditistays.chatservice.dto.ShareGPayInput;
-import com.aditistays.chatservice.filter.MetricsCollector;
 import com.aditistays.chatservice.repository.ChatRepository;
 import com.aditistays.chatservice.security.ChatAccess;
 import com.aditistays.chatservice.security.ChatSecurity;
@@ -45,24 +45,29 @@ public class ChatRestController {
     private final ChatSecurity security;
     private final ChatManager chatManager;
     private final ChatRepository chatRepository;
+    private final CrmClient crmClient;
     private final StorageService storageService;
     private final WhatsAppService whatsAppService;
-    private final MetricsCollector metrics;
 
     @GetMapping("/api/health")
     public Map<String, Object> health() {
         return Map.of("ok", true);
     }
 
-    @GetMapping(value = "/api/metrics", produces = "text/plain; version=0.0.4")
-    public String metrics() {
-        return metrics.prometheusText();
-    }
-
     @GetMapping("/api/chat/{leadId}/messages")
     public Map<String, Object> listMessages(@PathVariable long leadId, HttpServletRequest request) {
         security.requireChatHttpAccess(leadId, request);
         return Map.of("data", chatManager.fetchHistory(leadId));
+    }
+
+    /** Bulk last-message-per-lead lookup for crm-service's admin leads list preview. */
+    @GetMapping("/api/admin/chat/last-messages")
+    public Map<String, Object> lastMessages(@RequestParam("leadIds") List<Long> leadIds, HttpServletRequest request) {
+        security.requireAdminHttp(request);
+        Map<Long, Map<String, Object>> byLeadId = chatRepository.getLastMessages(leadIds);
+        Map<String, Object> data = new LinkedHashMap<>();
+        byLeadId.forEach((leadId, message) -> data.put(String.valueOf(leadId), message));
+        return Map.of("data", data);
     }
 
     @PostMapping("/api/chat/{leadId}/share-gpay")
@@ -105,7 +110,7 @@ public class ChatRestController {
         String uploadedBy = access.role().equals("admin") ? "admin" : "user";
         String senderLabel = uploadedBy.equals("admin") ? "Aditi Stays" : "Guest";
         if (uploadedBy.equals("user")) {
-            String customerName = chatRepository.getCustomerName(leadId).map(String::trim).orElse("");
+            String customerName = crmClient.getCustomerName(leadId).map(String::trim).orElse("");
             if (!customerName.isEmpty()) {
                 senderLabel = customerName;
             }
@@ -122,7 +127,7 @@ public class ChatRestController {
     @PostMapping("/api/chat/{leadId}/confirm")
     public Map<String, Object> confirmBooking(@PathVariable long leadId, @RequestBody ConfirmInput payload, HttpServletRequest request) {
         String adminActor = security.requireAdminHttp(request);
-        chatRepository.confirmLead(leadId, payload.getDetails());
+        crmClient.confirmLead(leadId, payload.getDetails());
 
         Map<String, Object> message = baseMessage(leadId, "admin", payload.getSenderLabel(), "CONFIRMATION", payload.getDetails(),
                 mapOfNullable("whatsapp_number", payload.getWhatsappNumber(), "admin_actor", adminActor));

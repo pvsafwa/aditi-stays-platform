@@ -6,6 +6,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.aditistays.chatservice.config.AppProperties;
 import com.aditistays.chatservice.security.ChatSecurity;
+import com.aditistays.chatservice.tracing.TraceContextCarrier;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -26,6 +29,8 @@ public class AdminNotificationsWebSocketHandler extends TextWebSocketHandler {
     private final ChatSecurity security;
     private final AppProperties props;
     private final RedisMessageListenerContainer container;
+    private final TraceContextCarrier traceContextCarrier;
+    private final Tracer tracer;
 
     private final Map<String, MessageListener> listeners = new ConcurrentHashMap<>();
 
@@ -40,10 +45,14 @@ public class AdminNotificationsWebSocketHandler extends TextWebSocketHandler {
 
         WebSocketSession session = new ConcurrentWebSocketSessionDecorator(rawSession, 10_000, 512 * 1024);
         MessageListener listener = (message, pattern) -> {
-            try {
-                session.sendMessage(new TextMessage(new String(message.getBody(), StandardCharsets.UTF_8)));
+            String body = new String(message.getBody(), StandardCharsets.UTF_8);
+            Span span = traceContextCarrier.startSpanFromEventJson(body, "admin-notification-relay");
+            try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+                session.sendMessage(new TextMessage(body));
             } catch (Exception ignored) {
                 // Session likely closing; nothing to do.
+            } finally {
+                span.end();
             }
         };
         listeners.put(rawSession.getId(), listener);

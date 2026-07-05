@@ -1,0 +1,86 @@
+server:
+  port: ${APP_PORT:8090}
+
+spring:
+  application:
+    name: gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # jwk-set-uri is fetched directly (no OIDC discovery), so it can
+          # point at a different, network-reachable hostname than issuer-uri
+          # -- which only needs to string-match the JWT's iss claim. Needed
+          # because Keycloak's KC_HOSTNAME fixes iss to the browser-facing
+          # localhost:8180 URL even for tokens/requests made over the docker
+          # network, which can't route to that URL to fetch keys itself.
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/aditi-stays}
+          jwk-set-uri: ${OIDC_JWK_SET_URI:http://localhost:8180/realms/aditi-stays/protocol/openid-connect/certs}
+  cloud:
+    gateway:
+      # Order matters: first matching route wins, so upload-endpoint routes
+      # (which live on chat-service) must come before the more general
+      # /api/admin/banners/** and /api/admin/properties/** routes below
+      # (which live on catalog-service).
+      routes:
+        - id: chat-ws
+          uri: ${CHAT_SERVICE_WS_URL:ws://localhost:8000}
+          predicates:
+            - Path=/ws/**
+
+        - id: chat-banner-upload
+          uri: ${CHAT_SERVICE_URL:http://localhost:8000}
+          predicates:
+            - Path=/api/admin/banners/upload
+
+        - id: chat-property-image-upload
+          uri: ${CHAT_SERVICE_URL:http://localhost:8000}
+          predicates:
+            - Path=/api/admin/properties/upload-image
+
+        - id: chat-api
+          uri: ${CHAT_SERVICE_URL:http://localhost:8000}
+          predicates:
+            - Path=/api/chat/**,/api/admin/chat/**
+
+        - id: crm-api
+          uri: ${CRM_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/leads/**,/api/admin/leads/**,/api/admin/analytics/**
+
+        - id: catalog-admin
+          uri: ${CATALOG_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/admin/banners/**,/api/admin/properties/**
+
+        - id: catalog-api
+          uri: ${CATALOG_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/properties/**,/api/banners,/api/browsing-history/**,/api/wishlist/**,/api/comparisons
+
+      globalcors:
+        cors-configurations:
+          # Scoped to /api/** (not /**) so it never touches the /ws/** upgrade
+          # requests -- a CORS filter wrapping the response on those corrupts
+          # the byte stream after the 101 Switching Protocols handshake.
+          "[/api/**]":
+            allowedOriginPatterns: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+            allowedMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+            allowedHeaders: "*"
+            allowCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  level:
+    root: INFO

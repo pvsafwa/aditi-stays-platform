@@ -1,0 +1,7 @@
+package com.aditistays.crmservice.service;
+
+public class DuplicateException extends RuntimeException {
+    public DuplicateException(String message) {
+        super(message);
+    }
+}
