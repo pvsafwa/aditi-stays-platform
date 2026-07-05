@@ -1,0 +1,11 @@
+server:
+  port: ${APP_PORT:8080}
+
+spring:
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_absent
+
+logging:
+  level:
+    root: INFO

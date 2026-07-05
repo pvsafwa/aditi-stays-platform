@@ -4,8 +4,8 @@ Enterprise CRM + catalog platform for a halal-compliant, human-assisted travel a
 
 ## Stack
 - **Frontend:** Next.js 14 + Tailwind
-- **Core API:** Go (Gin)
-- **Chat Service:** FastAPI + WebSockets
+- **Core API:** Java 21 + Spring Boot
+- **Chat Service:** Java 21 + Spring Boot (WebSocket)
 - **Data:** PostgreSQL + Redis
 
 > Infrastructure, CI/CD, and container orchestration are owned by the DevOps team
@@ -14,9 +14,8 @@ Enterprise CRM + catalog platform for a halal-compliant, human-assisted travel a
 > step is required.
 
 ## Prerequisites
-- Go 1.22+
+- Java 21+ and Maven 3.9+
 - Node.js 18+ and npm
-- Python 3.11+
 - A running PostgreSQL 16 and Redis 7 (e.g. `brew services start postgresql@16 redis`)
 
 Create the database once:
@@ -54,18 +53,16 @@ export USER_CHAT_TOKEN_SECRET="$(openssl rand -hex 24)"
 cd core-api
 DATABASE_URL="postgres://$(whoami)@localhost:5432/aditi_stays?sslmode=disable" \
 REDIS_ADDR="localhost:6379" \
-go run ./cmd/api
+mvn spring-boot:run
 ```
 
 **2. Chat Service**
 
 ```bash
 cd chat-service
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
 DATABASE_URL="postgresql+asyncpg://$(whoami)@localhost:5432/aditi_stays" \
 REDIS_URL="redis://localhost:6379/0" \
-uvicorn app.main:app --port 8000
+mvn spring-boot:run
 ```
 
 **3. Frontend**

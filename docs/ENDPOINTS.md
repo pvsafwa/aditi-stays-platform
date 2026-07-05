@@ -1,6 +1,6 @@
 # API Endpoints
 
-## Core API (Go)
+## Core API (Java / Spring Boot)
 Base: `http://localhost:8080`
 
 - `GET /health`
@@ -40,7 +40,7 @@ Admin:
 - `PUT /api/admin/banners/:bannerId`
 - `DELETE /api/admin/banners/:bannerId`
 
-## Chat Service (FastAPI)
+## Chat Service (Java / Spring Boot)
 Base: `http://localhost:8000`
 
 - `GET /api/health`

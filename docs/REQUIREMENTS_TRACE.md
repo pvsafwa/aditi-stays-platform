@@ -40,9 +40,9 @@
   - Next.js + Tailwind with catalog, wishlist, comparison, lead modal, chat, admin CRM.
   - Hero video runs muted autoplay.
 - Core API:
-  - Go service with listings, lead management, analytics, redis notifications.
+  - Java (Spring Boot) service with listings, lead management, analytics, redis notifications.
 - Chat Service:
-  - FastAPI + websockets + upload support.
+  - Java (Spring Boot) + websockets + upload support.
   - Upload guardrails and optional S3 backend.
 - Redis + PostgreSQL:
   - Redis event channels + active lead set.

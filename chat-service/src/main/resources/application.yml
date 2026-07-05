@@ -1,0 +1,15 @@
+server:
+  port: ${APP_PORT:8000}
+
+spring:
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_absent
+  servlet:
+    multipart:
+      max-file-size: 150MB
+      max-request-size: 150MB
+
+logging:
+  level:
+    root: INFO

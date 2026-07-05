@@ -21,20 +21,10 @@ coverage/
 dist/
 build/
 
-# Python
-__pycache__/
-.pycache/
-*.pyc
-.venv/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-
-# Go
-bin/
-.cache/
-coverage.out
+# Java / Maven
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
 
 # Uploads
 chat-service/uploads/*
